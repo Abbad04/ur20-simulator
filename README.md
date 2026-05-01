@@ -11,8 +11,6 @@
 
 A fully client-side UR20 robot simulator that runs in any modern browser. No server, no install, no build step. Open one HTML file and you have a functional 6-DOF robot teach pendant with forward/inverse kinematics, 3D visualization, waypoint programming, and export to Universal Robots' native PolyScope X format.
 
-> **Screenshot:** *(place a screenshot of the simulator here — `docs/screenshot.png`)*
-
 ---
 
 ## Features
