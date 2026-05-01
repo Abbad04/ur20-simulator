@@ -1,0 +1,2816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UR20 · PolyScope X Teach Pendant Simulator v4</title>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   RESET & VARIABLES
+══════════════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg0:#0b1120;--bg1:#0f1828;--bg2:#131f30;--bg3:#182438;--bg4:#1e2c44;
+  --border:#1e3050;--border2:#28406a;
+  --cyan:#00c8e8;--cyan2:#00a0c0;--cyan-glow:rgba(0,200,232,.18);
+  --orange:#ff7a30;--orange2:#e06020;
+  --green:#00e87a;--green2:#00b860;
+  --red:#ff3030;--yellow:#ffd020;
+  --text0:#eef4ff;--text1:#8bacc8;--text2:#445a78;
+  --joint-silver:#606a7a;--link-silver:#4a5468;
+  --radius:8px;--transition:0.18s ease;
+}
+html,body{width:100%;height:100vh;background:var(--bg0);color:var(--text0);
+  font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;user-select:none}
+
+/* ══════════════════════════════════════════════════════════════
+   APP LAYOUT
+══════════════════════════════════════════════════════════════ */
+#app{display:grid;grid-template-columns:1fr 390px;
+     grid-template-rows:48px 1fr;height:100vh}
+
+/* ══════════════════════════════════════════════════════════════
+   TOPBAR
+══════════════════════════════════════════════════════════════ */
+#topbar{
+  grid-column:1/-1;grid-row:1;
+  background:var(--bg1);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:18px;
+  box-shadow:0 1px 16px rgba(0,0,0,.5)
+}
+.tb-logo{font-size:16px;font-weight:800;color:var(--cyan);
+         letter-spacing:3px;text-transform:uppercase}
+.tb-sep{width:1px;height:22px;background:var(--border)}
+.tb-chip{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:20px;padding:4px 12px
+}
+.tb-chip-dot{width:7px;height:7px;border-radius:50%;
+             background:var(--green);box-shadow:0 0 8px var(--green)}
+.tb-chip-label{font-size:10px;color:var(--text1);letter-spacing:1px;text-transform:uppercase}
+.tb-tcp{font-size:11px;font-family:monospace;color:var(--cyan)}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.tb-mode{font-size:10px;font-weight:700;letter-spacing:2px;
+         text-transform:uppercase;color:var(--text1)}
+.tb-wps{font-size:11px;font-family:monospace;color:var(--orange)}
+
+/* ══════════════════════════════════════════════════════════════
+   VIEWPORT
+══════════════════════════════════════════════════════════════ */
+#vp{grid-column:1;grid-row:2;position:relative;overflow:hidden;background:var(--bg0)}
+#vp canvas{display:block}
+
+/* HUD */
+#hud{
+  position:absolute;bottom:20px;left:20px;
+  background:rgba(4,6,15,.88);border:1px solid var(--border2);
+  border-radius:var(--radius);padding:14px 18px;backdrop-filter:blur(10px);
+  min-width:200px;pointer-events:none
+}
+.hud-title{font-size:9px;font-weight:700;letter-spacing:2px;
+           text-transform:uppercase;color:var(--cyan);margin-bottom:10px}
+.hud-grid{display:grid;grid-template-columns:18px 1fr;gap:4px 10px;
+          font-size:12px;font-family:monospace}
+.hud-k{color:var(--text1)}.hud-v{color:var(--cyan)}
+.hud-v.warn{color:var(--yellow)}.hud-v.err{color:var(--red)}
+
+/* Camera hint */
+#cam-hint{
+  position:absolute;top:14px;left:20px;
+  font-size:10px;color:var(--text2);line-height:1.9;pointer-events:none
+}
+
+/* Playing overlay */
+#playing-badge{
+  position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  background:rgba(0,232,122,.12);border:1px solid var(--green);
+  border-radius:20px;padding:5px 18px;font-size:11px;font-weight:700;
+  color:var(--green);letter-spacing:1px;display:none;pointer-events:none
+}
+#playing-badge.show{display:block}
+
+/* IK status */
+#ik-status{
+  position:absolute;bottom:20px;right:20px;
+  font-size:10px;font-family:monospace;color:var(--text2);pointer-events:none
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PANEL
+══════════════════════════════════════════════════════════════ */
+#panel{
+  grid-column:2;grid-row:2;
+  background:var(--bg1);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden
+}
+
+/* Tab bar */
+.tabs{display:flex;background:var(--bg0);border-bottom:1px solid var(--border)}
+.tab{
+  flex:1;padding:13px 0;font-size:10px;font-weight:700;
+  letter-spacing:1.8px;text-transform:uppercase;
+  background:none;border:none;color:var(--text2);cursor:pointer;
+  position:relative;transition:color var(--transition)
+}
+.tab:hover{color:var(--text1)}
+.tab.on{color:var(--cyan)}
+.tab.on::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent)
+}
+
+/* Tab pane */
+.pane{flex:1;overflow-y:auto;display:none;padding:14px 14px 20px}
+.pane.on{display:block}
+.pane::-webkit-scrollbar{width:3px}
+.pane::-webkit-scrollbar-track{background:transparent}
+.pane::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* Section */
+.sec{margin-bottom:18px}
+.sec-label{
+  font-size:9px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--text2);margin-bottom:8px;padding:0 2px
+}
+
+/* Card */
+.card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:12px 14px;
+  transition:border-color var(--transition)
+}
+.card:hover{border-color:var(--border2)}
+
+/* Slider rows */
+.sl-row{
+  display:grid;grid-template-columns:22px 1fr 70px;
+  align-items:center;gap:8px;margin-bottom:9px
+}
+.sl-row:last-child{margin-bottom:0}
+.sl-key{font-size:10px;font-weight:700;color:var(--text1);text-align:right}
+.sl-val{font-size:11px;font-family:monospace;color:var(--cyan);text-align:right}
+.sl-val.j{color:#7ab8f0}
+
+/* Range inputs */
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:3px;border-radius:2px;
+  background:linear-gradient(90deg,var(--cyan) var(--pct,50%),var(--bg4) var(--pct,50%));
+  outline:none;cursor:pointer;transition:height var(--transition)
+}
+input[type=range]:hover{height:4px}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+  background:var(--cyan);cursor:pointer;
+  box-shadow:0 0 8px var(--cyan-glow);
+  transition:transform var(--transition),box-shadow var(--transition)
+}
+input[type=range]::-webkit-slider-thumb:hover{
+  transform:scale(1.3);box-shadow:0 0 14px var(--cyan)
+}
+input[type=range].j{
+  background:linear-gradient(90deg,#3a7dd0 var(--pct,50%),var(--bg4) var(--pct,50%))
+}
+input[type=range].j::-webkit-slider-thumb{background:#7ab8f0;box-shadow:0 0 8px rgba(122,184,240,.3)}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 14px;border-radius:6px;font-size:11px;font-weight:700;
+  letter-spacing:.5px;cursor:pointer;border:1px solid transparent;
+  transition:all var(--transition);white-space:nowrap
+}
+.btn-cyan{background:var(--cyan);color:var(--bg0);border-color:var(--cyan)}
+.btn-cyan:hover{background:transparent;color:var(--cyan)}
+.btn-outline{background:var(--bg3);color:var(--text0);border-color:var(--border2)}
+.btn-outline:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn-green{background:var(--green2);color:var(--bg0);border-color:var(--green2)}
+.btn-green:hover{background:transparent;color:var(--green);border-color:var(--green)}
+.btn-red{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-red:hover{background:rgba(255,48,48,.1)}
+.btn-orange{background:var(--orange2);color:var(--bg0);border-color:var(--orange2)}
+.btn-orange:hover{background:transparent;color:var(--orange);border-color:var(--orange)}
+.btn-sm{padding:6px 10px;font-size:10px}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap}
+
+/* Quick positions */
+.quick-row{display:flex;gap:6px;margin-bottom:4px}
+.qbtn{
+  flex:1;padding:9px 4px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;font-size:10px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:var(--text1);cursor:pointer;
+  transition:all var(--transition);text-align:center
+}
+.qbtn:hover{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-glow)}
+
+/* ── Waypoint list ────────────────────────────────────────── */
+#wp-ul{list-style:none;margin-bottom:10px}
+.wp-drag{cursor:grab;color:var(--text2);font-size:13px;padding:0 5px 0 2px;
+         flex-shrink:0;user-select:none;letter-spacing:-1px}
+.wp-drag:active{cursor:grabbing}
+
+/* wp-li is now a column: [top zone] [main row] [bot zone] */
+.wp-li{
+  display:flex;flex-direction:column;
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;margin-bottom:4px;cursor:pointer;
+  transition:border-color var(--transition),background var(--transition)
+}
+.wp-li:hover{border-color:var(--border2)}
+.wp-li.sel{border-color:var(--cyan);background:rgba(0,200,232,.06)}
+.wp-li.dragging{opacity:.35;background:var(--bg4)}
+.wp-li.drag-over{box-shadow:inset 0 2px 0 0 var(--cyan)}
+
+/* Main content row (was the old wp-li row) */
+.wp-main{display:flex;align-items:center;padding:9px 10px;gap:8px}
+
+/* Insert zones — thin bar at top and bottom, revealed on item hover */
+.wp-ins-zone{
+  height:0;overflow:hidden;opacity:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:height .14s,opacity .14s
+}
+.wp-li:hover .wp-ins-zone,.wp-ins-zone.expanded{height:22px;opacity:1}
+.wp-ins-zone.top{border-bottom:1px solid transparent}
+.wp-li:hover .wp-ins-zone.top,.wp-ins-zone.top.expanded{border-bottom-color:var(--border)}
+.wp-ins-zone.bot{border-top:1px solid transparent}
+.wp-li:hover .wp-ins-zone.bot,.wp-ins-zone.bot.expanded{border-top-color:var(--border)}
+
+/* The + trigger button */
+.wp-ins-btn{
+  background:none;border:none;color:var(--text2);
+  font-size:16px;line-height:1;cursor:pointer;
+  padding:1px 10px;border-radius:4px;
+  transition:color .12s,background .12s
+}
+.wp-ins-btn:hover{color:var(--cyan);background:rgba(0,200,232,.08)}
+
+/* Expanded inline choices */
+.wp-ins-choices{display:flex;align-items:center;gap:1px;display:none}
+.wp-ins-zone.expanded .wp-ins-choices{display:flex}
+.wp-ins-zone.expanded .wp-ins-btn{display:none}
+.wp-pop-wp,.wp-pop-wait,.wp-pop-cancel{
+  background:none;border:none;font-size:10px;font-weight:700;
+  cursor:pointer;padding:3px 10px;border-radius:4px;
+  transition:background .1s,color .1s;white-space:nowrap
+}
+.wp-pop-wp{color:var(--cyan)}
+.wp-pop-wp:hover{background:rgba(0,200,232,.1)}
+.wp-pop-wait{color:var(--yellow)}
+.wp-pop-wait:hover{background:rgba(255,208,32,.1)}
+.wp-pop-cancel{color:var(--text2);font-size:13px;padding:3px 8px}
+.wp-pop-cancel:hover{color:var(--red)}
+.wp-pop-sep{width:1px;height:14px;background:var(--border);flex-shrink:0}
+.wp-rename-inp{background:var(--bg2);border:1px solid var(--cyan);color:var(--text0);
+               border-radius:4px;padding:1px 5px;font-size:11px;width:100%;outline:none;
+               font-weight:600}
+.wp-li.dragging{opacity:.35;background:var(--bg4)}
+.wp-li.drag-over{box-shadow:inset 0 2px 0 0 var(--cyan)}
+.wp-li{
+  display:flex;align-items:center;padding:9px 10px;
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;margin-bottom:4px;cursor:pointer;gap:8px;
+  transition:all var(--transition)
+}
+.wp-li:hover{border-color:var(--border2)}
+.wp-li.sel{border-color:var(--cyan);background:rgba(0,200,232,.06)}
+.wp-num{font-size:9px;font-weight:800;color:var(--orange);width:26px;
+        text-align:center;flex-shrink:0}
+.wp-body{flex:1;min-width:0}
+.wp-name{font-size:11px;font-weight:600;color:var(--text0);
+         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-coords{font-size:9px;font-family:monospace;color:var(--text2);margin-top:1px}
+/* Waypoint type badges */
+.wp-type{
+  font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+  padding:1px 5px;border-radius:3px;flex-shrink:0;margin-right:2px
+}
+.wp-type-j  {background:rgba(0,200,232,.15);color:var(--cyan)}
+.wp-type-l  {background:rgba(255,122,48,.15);color:var(--orange)}
+.wp-type-w  {background:rgba(255,208,32,.15);color:var(--yellow)}
+.wp-type-io {background:rgba(0,232,122,.15);color:var(--green)}
+.wp-wait-wrap{display:flex;align-items:center;gap:5px;margin-top:4px}
+.wp-wait-inp{
+  width:62px;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--yellow);border-radius:4px;padding:2px 5px;
+  font-size:10px;font-family:monospace;outline:none;text-align:right;
+  transition:border-color var(--transition)
+}
+.wp-wait-inp:focus{border-color:var(--yellow)}
+.wp-time-wrap{
+  display:flex;align-items:center;gap:4px;margin-top:4px;
+}
+.wp-time-lbl{font-size:9px;color:var(--text1);flex-shrink:0}
+.wp-time-inp{
+  width:58px;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--cyan);border-radius:4px;padding:2px 5px;
+  font-size:10px;font-family:monospace;outline:none;
+  text-align:right;transition:border-color var(--transition)
+}
+.wp-time-inp:focus{border-color:var(--cyan)}
+.wp-time-inp.clamped{border-color:var(--yellow);color:var(--yellow)}
+.wp-time-unit{font-size:9px;color:var(--text2)}
+.wp-x{
+  background:none;border:none;color:var(--text2);cursor:pointer;
+  font-size:16px;padding:2px 6px;border-radius:4px;flex-shrink:0;
+  transition:color var(--transition)
+}
+.wp-x:hover{color:var(--red)}
+
+/* TCP Speed */
+.tcp-speed-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.tcp-speed-inp{
+  width:80px;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--cyan);border-radius:6px;padding:5px 8px;
+  font-size:18px;font-family:monospace;font-weight:800;outline:none;
+  text-align:right;text-shadow:0 0 12px rgba(0,200,232,.4);
+  transition:border-color var(--transition)
+}
+.tcp-speed-inp:focus{border-color:var(--cyan)}
+.tcp-speed-unit{font-size:12px;color:var(--text1)}
+.tcp-speed-note{font-size:9px;color:var(--text2);line-height:1.4}
+/* Upload */
+.upload-drop{
+  border:2px dashed var(--border2);border-radius:8px;
+  padding:14px 12px;text-align:center;cursor:pointer;
+  transition:all var(--transition);background:var(--bg2)
+}
+.upload-drop:hover,.upload-drop.drag-active{
+  border-color:var(--cyan);background:rgba(0,200,232,.05)
+}
+.upload-drop-icon{font-size:20px;margin-bottom:4px}
+.upload-drop-label{font-size:11px;color:var(--text1);font-weight:600}
+.upload-drop-sub{font-size:9px;color:var(--text2);margin-top:2px}
+
+/* Toggle */
+.tog-row{display:flex;justify-content:space-between;align-items:center;
+         padding:10px 0;border-bottom:1px solid var(--border)}
+.tog-row:last-child{border-bottom:none}
+.tog-lbl{font-size:12px;color:var(--text1)}
+.switch{position:relative;width:38px;height:21px;cursor:pointer}
+.switch input{display:none}
+.sw-track{
+  position:absolute;inset:0;background:var(--bg4);
+  border-radius:11px;border:1px solid var(--border2);
+  transition:background var(--transition)
+}
+.switch input:checked+.sw-track{background:var(--cyan2);border-color:var(--cyan)}
+.sw-thumb{
+  position:absolute;top:3px;left:3px;width:13px;height:13px;
+  background:#fff;border-radius:50%;transition:left var(--transition)
+}
+.switch input:checked~.sw-thumb{left:20px}
+
+/* Info rows */
+.info-row{display:flex;justify-content:space-between;align-items:center;
+          padding:9px 0;border-bottom:1px solid var(--border)}
+.info-row:last-child{border-bottom:none}
+.info-key{font-size:11px;color:var(--text1)}
+.info-val{font-size:11px;font-family:monospace;color:var(--cyan)}
+
+/* Joint limit bar */
+.jl-bar{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);
+  width:3px;height:70%;border-radius:2px;background:var(--border)
+}
+.jl-fill{
+  position:absolute;bottom:0;left:0;right:0;border-radius:2px;
+  background:var(--green);transition:height .1s,background .1s
+}
+
+/* ── Toast notifications ─────────────────────────────────── */
+#toast-container{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none
+}
+.toast{
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:8px;padding:10px 16px;font-size:11px;font-weight:600;
+  color:var(--text0);box-shadow:0 4px 20px rgba(0,0,0,.5);
+  opacity:0;transform:translateY(8px);min-width:180px;
+  transition:opacity .25s,transform .25s
+}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-success{border-color:var(--green)!important;color:var(--green)!important}
+.toast-error{border-color:var(--red)!important;color:var(--red)!important}
+.toast-warn{border-color:var(--yellow)!important;color:var(--yellow)!important}
+.toast-info{border-color:var(--cyan)!important;color:var(--cyan)!important}
+
+/* ── Save badge in topbar ────────────────────────────────── */
+#save-badge{
+  font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
+  font-weight:700;color:var(--green);opacity:0;
+  transition:opacity .4s;user-select:none
+}
+#save-badge.show{opacity:1}
+
+/* ── Disabled buttons ───────────────────────────────────── */
+.btn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+
+/* ── CSV hint block ─────────────────────────────────────── */
+.csv-hint{
+  font-size:9px;color:var(--text2);line-height:1.55;
+  margin-top:7px;padding:8px 10px;
+  background:var(--bg0);border-radius:6px;
+  border:1px solid var(--border);font-family:monospace
+}
+.csv-hint b{color:var(--cyan);font-weight:700}
+
+/* ── Project section ────────────────────────────────────── */
+.proj-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.proj-name-inp{
+  flex:1;min-width:100px;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text0);border-radius:6px;padding:6px 10px;font-size:11px;outline:none;
+  transition:border-color var(--transition)
+}
+.proj-name-inp:focus{border-color:var(--cyan)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ── TOP BAR ─────────────────────────────────────────────── -->
+<div id="topbar">
+  <span class="tb-logo">UR20</span>
+  <div class="tb-sep"></div>
+  <div class="tb-chip">
+    <div class="tb-chip-dot"></div>
+    <span class="tb-chip-label">PolyScope X · Simulator</span>
+  </div>
+  <div class="tb-sep"></div>
+  <span class="tb-chip-label" style="color:var(--text2)">TCP</span>
+  <span class="tb-tcp" id="sb-tcp">X 0.000  Y 0.000  Z 0.000</span>
+  <div class="tb-right">
+    <span class="tb-chip-label">WPs</span>
+    <span class="tb-wps" id="sb-wps">0</span>
+    <div class="tb-sep"></div>
+    <span class="tb-mode" id="sb-mode">TEACH</span>
+    <span id="save-badge">✓ Saved</span>
+  </div>
+</div>
+
+<!-- ── VIEWPORT ───────────────────────────────────────────── -->
+<div id="vp">
+  <div id="cam-hint">🖱 Left drag: rotate &nbsp;·&nbsp; Right drag: pan &nbsp;·&nbsp; Scroll: zoom<br>
+    [Space] Record &nbsp;·&nbsp; [P] Play &nbsp;·&nbsp; [H] Home &nbsp;·&nbsp; [Esc] Stop<br>
+    Ctrl+Z Undo &nbsp;·&nbsp; Ctrl+Y Redo &nbsp;·&nbsp; Ctrl+S Save</div>
+  <div id="playing-badge">▶  RUNNING PATH</div>
+  <div id="hud">
+    <div class="hud-title">TCP Position</div>
+    <div class="hud-grid">
+      <span class="hud-k">X</span><span class="hud-v" id="h-x">0.000 m</span>
+      <span class="hud-k">Y</span><span class="hud-v" id="h-y">0.000 m</span>
+      <span class="hud-k">Z</span><span class="hud-v" id="h-z">0.000 m</span>
+    </div>
+  </div>
+  <div id="ik-status"></div>
+</div>
+
+<!-- ── PANEL ──────────────────────────────────────────────── -->
+<div id="panel">
+  <div class="tabs">
+    <button class="tab on" data-t="jog">Teach</button>
+    <button class="tab" data-t="cfg">Config</button>
+  </div>
+
+  <!-- TEACH PANE (Jog + Program combined) -->
+  <div class="pane on" id="pane-jog">
+
+    <div class="sec">
+      <div class="sec-label">Quick Positions</div>
+      <div class="quick-row">
+        <div class="qbtn" onclick="goPreset('home')">🏠&nbsp;Home</div>
+        <div class="qbtn" onclick="goPreset('zero')">◎&nbsp;Zero</div>
+        <div class="qbtn" onclick="goPreset('up')">↑&nbsp;Up</div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Tool Position — metres</div>
+      <div class="card">
+        <div class="sl-row">
+          <span class="sl-key">X</span>
+          <input type="range" id="sl-x" min="-1.5" max="1.5" step="0.001" value="0">
+          <span class="sl-val" id="v-x">0.000</span>
+        </div>
+        <div class="sl-row">
+          <span class="sl-key">Y</span>
+          <input type="range" id="sl-y" min="-1.5" max="1.5" step="0.001" value="0">
+          <span class="sl-val" id="v-y">0.000</span>
+        </div>
+        <div class="sl-row">
+          <span class="sl-key">Z</span>
+          <input type="range" id="sl-z" min="-0.2" max="2.2" step="0.001" value="0">
+          <span class="sl-val" id="v-z">0.000</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Joint Angles — degrees</div>
+      <div class="card" id="jsliders"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Waypoints &nbsp;<span id="wp-count" style="color:var(--orange)">0</span></div>
+      <div class="btn-row" style="margin-bottom:6px">
+        <button class="btn btn-cyan" onclick="recordWP()">📍 Record&nbsp;<kbd style="font-size:9px;opacity:.7">[Space]</kbd></button>
+        <button class="btn btn-outline btn-sm" onclick="addWait()" title="Insert a Wait/Sleep node">⏸ Wait</button>
+        <button class="btn btn-outline btn-sm" onclick="gotoSel()">↗ Go To</button>
+      </div>
+      <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn btn-outline btn-sm" id="undo-btn" onclick="undoWP()" title="Undo [Ctrl+Z]" disabled>↩ Undo</button>
+        <button class="btn btn-outline btn-sm" id="redo-btn" onclick="redoWP()" title="Redo [Ctrl+Y]" disabled>↪ Redo</button>
+      </div>
+      <ul id="wp-ul"></ul>
+      <div class="btn-row" style="margin-bottom:4px">
+        <button class="btn btn-green" id="play-btn" onclick="playOrResume()">▶ Play&nbsp;<kbd style="font-size:9px;opacity:.7">[P]</kbd></button>
+        <button class="btn btn-outline btn-sm" id="pause-btn" onclick="pausePath()" style="display:none">⏸ Pause</button>
+        <button class="btn btn-red btn-sm" id="stop-btn" onclick="stopPath()" style="display:none">⏹ Stop</button>
+        <button class="btn btn-outline btn-sm" onclick="restartPath()" id="restart-btn" style="display:none" title="Play from beginning">↺</button>
+        <button class="btn btn-outline btn-sm" onclick="clearWPs()">Clear</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Auto-Speed (non-timed waypoints)</div>
+      <div class="card" style="padding:8px 14px">
+        <div class="tcp-speed-row">
+          <input type="number" id="tcp-speed-inp" class="tcp-speed-inp"
+                 min="250" max="1500" step="50" value="500">
+          <div>
+            <div class="tcp-speed-unit">mm / s</div>
+            <div class="tcp-speed-note">250 – 1500 mm/s<br>Ignored if ⏱ time is set</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Import Waypoints</div>
+      <div class="upload-drop" id="upload-drop" onclick="document.getElementById('file-upload-inp').click()"
+           ondragover="event.preventDefault();this.classList.add('drag-active')"
+           ondragleave="this.classList.remove('drag-active')"
+           ondrop="handleFileDrop(event)">
+        <div class="upload-drop-icon">📂</div>
+        <div class="upload-drop-label">Click or drag file here</div>
+        <div class="upload-drop-sub">.urpx &nbsp;·&nbsp; .script &nbsp;·&nbsp; .angles &nbsp;·&nbsp; .csv</div>
+      </div>
+      <input type="file" id="file-upload-inp" accept=".urpx,.script,.angles,.csv" style="display:none"
+             onchange="handleFileSelect(event)">
+      <div class="csv-hint">
+        <b>CSV format (Arduino IK output):</b><br>
+        name, j1°, j2°, j3°, j4°, j5°, j6°[, time_s]<br>
+        <span style="color:var(--text2)">or bare: j1°, j2°, j3°, j4°, j5°, j6°</span><br>
+        Lines starting with # are ignored.
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Export Program</div>
+      <div class="btn-row">
+        <button class="btn btn-orange" style="flex:1" onclick="exportScript()">💾 URScript</button>
+        <button class="btn btn-outline" style="flex:1" onclick="exportURPX()">📦 URPX</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Project &nbsp;<span style="color:var(--text2);font-size:8px;font-weight:400;text-transform:none;letter-spacing:0">browser storage</span></div>
+      <div class="proj-row" style="margin-bottom:6px">
+        <input type="text" id="proj-name-inp" class="proj-name-inp" placeholder="Project name…" value="UR20_Program">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-sm" style="flex:1" onclick="saveProject()" title="Save to browser localStorage">💾 Save</button>
+        <button class="btn btn-outline btn-sm" style="flex:1" onclick="loadProject()" title="Load from browser localStorage">📂 Load</button>
+        <button class="btn btn-red btn-sm" onclick="clearSavedProject()" title="Delete saved project from browser">🗑</button>
+      </div>
+    </div>
+
+  </div><!-- /pane-jog (teach) -->
+
+  <!-- CONFIG PANE -->
+  <div class="pane" id="pane-cfg">
+    <div class="sec">
+      <div class="sec-label">Robot Specifications</div>
+      <div class="card">
+        <div class="info-row"><span class="info-key">Model</span><span class="info-val">UR20</span></div>
+        <div class="info-row"><span class="info-key">Payload</span><span class="info-val">20 kg</span></div>
+        <div class="info-row"><span class="info-key">Reach</span><span class="info-val">1750 mm</span></div>
+        <div class="info-row"><span class="info-key">Weight</span><span class="info-val">64.0 kg</span></div>
+        <div class="info-row"><span class="info-key">DoF</span><span class="info-val">6 (revolute)</span></div>
+        <div class="info-row"><span class="info-key">IP Rating</span><span class="info-val">IP54</span></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-label">DH Parameters</div>
+      <div class="card">
+        <div class="info-row"><span class="info-key">a  [m]</span><span class="info-val" style="font-size:9px">0, -0.7127, -0.6156, 0, 0, 0</span></div>
+        <div class="info-row"><span class="info-key">d  [m]</span><span class="info-val" style="font-size:9px">0.1807, 0, 0, 0.1742, 0.1203, 0.1166</span></div>
+        <div class="info-row"><span class="info-key">α  [rad]</span><span class="info-val" style="font-size:9px">π/2, 0, 0, π/2, −π/2, 0</span></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-label">Display</div>
+      <div class="card">
+        <div class="tog-row">
+          <span class="tog-lbl">Show EE Frame</span>
+          <label class="switch">
+            <input type="checkbox" id="tog-frame" onchange="setShowFrame(this.checked)">
+            <div class="sw-track"></div><div class="sw-thumb"></div>
+          </label>
+        </div>
+        <div class="tog-row">
+          <span class="tog-lbl">Show Path</span>
+          <label class="switch">
+            <input type="checkbox" id="tog-path" checked onchange="setShowPath(this.checked)">
+            <div class="sw-track"></div><div class="sw-thumb"></div>
+          </label>
+        </div>
+        <div class="tog-row">
+          <span class="tog-lbl">Show Waypoints</span>
+          <label class="switch">
+            <input type="checkbox" id="tog-wpm" checked onchange="setShowWPM(this.checked)">
+            <div class="sw-track"></div><div class="sw-thumb"></div>
+          </label>
+        </div>
+        <div class="tog-row">
+          <span class="tog-lbl">Shadows</span>
+          <label class="switch">
+            <input type="checkbox" id="tog-shadow" checked onchange="setShadow(this.checked)">
+            <div class="sw-track"></div><div class="sw-thumb"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div><!-- /pane-cfg -->
+
+</div><!-- /panel -->
+</div><!-- /app -->
+
+<div id="toast-container"></div>
+
+<!-- Three.js + OrbitControls via import map -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ══════════════════════════════════════════════════════════════
+   UR20 KINEMATICS  (Craig-style DH, Z-up convention)
+══════════════════════════════════════════════════════════════ */
+const PI = Math.PI;
+const UR20 = {
+  // Official UR20 Ideal DH Parameters (Standard DH convention)
+  // Source: Universal Robots – verified against URSim TCP at q=[0,0,0,0,0,0]
+  //   a[1]+a[2]  = -1.5907 m  ✓  d[3]+d[5] = 0.3553 m  ✓  d[0]-d[4] = 0.077 m  ✓
+  a:     [0,       -0.8620, -0.7287,  0,        0,        0      ],
+  d:     [0.2363,   0,       0,        0.2010,   0.1593,   0.1543 ],
+  alpha: [PI/2,     0,       0,        PI/2,    -PI/2,     0      ],
+};
+
+// Comfortable working poses (joint angles in radians)
+const POSE_HOME = [0, -PI/2,  PI/3,  -5*PI/6, -PI/2,  0];
+const POSE_ZERO = [0,  0,     0,      0,        0,      0];
+const POSE_UP   = [0, -PI/2,  0,     -PI/2,    -PI/2,  0];
+
+// Joint soft limits (kept wide for exploration)
+const JLIM = Array(6).fill([-2*PI, 2*PI]);
+
+/* ── DH Transform ──────────────────────────────────────────── */
+function dhMat(theta, d, a, alpha) {
+  const ct = Math.cos(theta), st = Math.sin(theta);
+  const ca = Math.cos(alpha), sa = Math.sin(alpha);
+  return [
+    [ct, -st*ca,  st*sa, a*ct],
+    [st,  ct*ca, -ct*sa, a*st],
+    [0,   sa,     ca,    d   ],
+    [0,   0,      0,     1   ],
+  ];
+}
+
+function m4mul(A, B) {
+  const C = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,1]];
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++){
+    let s=0; for(let k=0;k<4;k++) s+=A[i][k]*B[k][j]; C[i][j]=s;
+  }
+  return C;
+}
+
+/* Returns array of 7 cumulative 4×4 row-major matrices T[0..6] */
+function fkAll(q) {
+  let T = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+  const out = [T];
+  for(let i=0;i<6;i++){
+    T = m4mul(T, dhMat(q[i], UR20.d[i], UR20.a[i], UR20.alpha[i]));
+    out.push(T);
+  }
+  return out;
+}
+
+function fkEE(q){ return fkAll(q)[6]; }
+function getPos(M){ return [M[0][3], M[1][3], M[2][3]]; }
+function norm3(v){ return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); }
+function norm6(v){ return Math.sqrt(v.reduce((s,x)=>s+x*x,0)); }
+
+/* Numerical position Jacobian (3×6) */
+function posJ(q, eps=6e-6) {
+  const p0 = getPos(fkEE(q));
+  const J = [[],[],[]] ;
+  for(let i=0;i<6;i++){
+    const qd=[...q]; qd[i]+=eps;
+    const pd=getPos(fkEE(qd));
+    for(let r=0;r<3;r++) J[r][i]=(pd[r]-p0[r])/eps;
+  }
+  return J;
+}
+
+/* JᵀJ  (6×6) */
+function jtj(J){
+  const R=Array.from({length:6},()=>new Array(6).fill(0));
+  for(let i=0;i<6;i++) for(let j=0;j<6;j++)
+    for(let k=0;k<3;k++) R[i][j]+=J[k][i]*J[k][j];
+  return R;
+}
+
+/* Jᵀ × 3-vec → 6-vec */
+function jtv(J,v){
+  const r=new Array(6).fill(0);
+  for(let i=0;i<6;i++) for(let k=0;k<3;k++) r[i]+=J[k][i]*v[k];
+  return r;
+}
+
+/* Gaussian elimination – solve 6×6 Ax=b */
+function solve6(A, b) {
+  const n=6;
+  const M=A.map((row,i)=>[...row,b[i]]);
+  for(let c=0;c<n;c++){
+    let mx=c;
+    for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[mx][c])) mx=r;
+    [M[c],M[mx]]=[M[mx],M[c]];
+    for(let r=c+1;r<n;r++){
+      const f=M[r][c]/M[c][c];
+      for(let k=c;k<=n;k++) M[r][k]-=f*M[c][k];
+    }
+  }
+  const x=new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    x[i]=M[i][n];
+    for(let j=i+1;j<n;j++) x[i]-=M[i][j]*x[j];
+    x[i]/=M[i][i];
+  }
+  return x;
+}
+
+/* Levenberg-Marquardt IK for position */
+function ikPos(target, q0=null, maxIter=200, tol=1e-4) {
+  let q = q0 ? [...q0] : [...POSE_HOME];
+  const lam = 0.003;
+  for(let it=0;it<maxIter;it++){
+    const p=getPos(fkEE(q));
+    const e=[target[0]-p[0],target[1]-p[1],target[2]-p[2]];
+    if(norm3(e)<tol) break;
+    const J=posJ(q);
+    const JTJ=jtj(J);
+    const tr=JTJ.reduce((s,r,i)=>s+r[i],0);
+    const d=lam*(tr/6+1e-9);
+    for(let i=0;i<6;i++) JTJ[i][i]+=d;
+    const dq=solve6(JTJ, jtv(J,e));
+    const step=Math.min(1, 0.3/(norm6(dq)+1e-9));
+    for(let i=0;i<6;i++){
+      q[i]+=step*dq[i];
+      q[i]=Math.max(JLIM[i][0],Math.min(JLIM[i][1],q[i]));
+    }
+  }
+  const fp=getPos(fkEE(q));
+  const res=norm3([target[0]-fp[0],target[1]-fp[1],target[2]-fp[2]]);
+  return {q, res};
+}
+
+/* ══════════════════════════════════════════════════════════════
+   THREE.JS SETUP
+══════════════════════════════════════════════════════════════ */
+const vpEl = document.getElementById('vp');
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.8;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setSize(vpEl.clientWidth, vpEl.clientHeight);
+vpEl.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a2540);
+scene.fog = new THREE.FogExp2(0x1a2540, 0.04);
+
+const camera = new THREE.PerspectiveCamera(42, vpEl.clientWidth/vpEl.clientHeight, 0.01, 60);
+camera.position.set(2.8, 2.0, 2.6);
+camera.lookAt(0, 0.8, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.8, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 0.4;
+controls.maxDistance = 10;
+controls.update();
+
+/* ── Lighting ── */
+scene.add(new THREE.AmbientLight(0xd0e0ff, 1.8));
+const sun = new THREE.DirectionalLight(0xffffff, 5.0);
+sun.position.set(3, 6, 4);
+sun.castShadow = true;
+sun.shadow.mapSize.width = sun.shadow.mapSize.height = 1024;
+Object.assign(sun.shadow.camera,{near:.1,far:20,left:-3,right:3,top:3,bottom:-3});
+sun.shadow.bias = -0.001;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x4070c0, 2.0);
+fill.position.set(-3, 2, -2);
+scene.add(fill);
+
+/* ── Floor (translucent so underground robot is visible) ───── */
+const floorMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(12, 12),
+  new THREE.MeshStandardMaterial({
+    color:0x2a3a5a, metalness:0.1, roughness:0.85,
+    transparent:true, opacity:0.38,
+    side:THREE.DoubleSide, depthWrite:false
+  })
+);
+floorMesh.rotation.x = -PI/2;
+floorMesh.receiveShadow = true;
+scene.add(floorMesh);
+
+// Grid
+const grid = new THREE.GridHelper(6, 30, 0x3060a0, 0x1e3a6a);
+grid.position.y = 0.001;
+scene.add(grid);
+
+// Origin ring
+const oring = new THREE.Mesh(
+  new THREE.RingGeometry(0.045, 0.065, 48),
+  new THREE.MeshBasicMaterial({color:0x00c8e8, side:THREE.DoubleSide, transparent:true, opacity:0.7})
+);
+oring.rotation.x = -PI/2; oring.position.y = 0.002;
+scene.add(oring);
+
+/* ══════════════════════════════════════════════════════════════
+   ROBOT VISUAL — Schematic: ball joints + tube links
+   DH convention is Z-up. robotRoot.rotation.x = −π/2 maps the
+   DH Z-up frame to Three.js Y-up. All FK positions are used
+   directly without any extra transform.
+══════════════════════════════════════════════════════════════ */
+const robotRoot = new THREE.Group();
+robotRoot.rotation.x = -PI/2;
+scene.add(robotRoot);
+
+/* ── Base mount disc (at floor level, Z=0 in DH space) ────── */
+const baseDisk = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.115, 0.122, 0.016, 32),
+  new THREE.MeshStandardMaterial({color:0x2a3448, metalness:0.82, roughness:0.22})
+);
+robotRoot.add(baseDisk);
+
+/* ── Joint spheres J0..J6 ────────────────────────────────── */
+// J0 = base origin (dark), J1–J5 = revolute joints (silver), J6 = TCP (orange)
+// Positions are updated every frame from fkAll() output.
+const J_RAD   = [0.045, 0.055, 0.055, 0.046, 0.038, 0.032, 0.026];
+const J_COLOR = [0x2a3448, 0xc8d8e8, 0xc8d8e8, 0xc8d8e8, 0xc8d8e8, 0xc8d8e8, 0xff7a30];
+const J_EMIT  = [0x000000, 0x0a1422, 0x0a1422, 0x0a1422, 0x0a1422, 0x0a1422, 0x200800];
+const jointSpheres = [];
+for(let i = 0; i <= 6; i++){
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(J_RAD[i], 20, 16),
+    new THREE.MeshStandardMaterial({
+      color:J_COLOR[i], metalness:0.65, roughness:0.28,
+      emissive:J_EMIT[i], emissiveIntensity:0.4
+    })
+  );
+  m.castShadow = true;
+  robotRoot.add(m);
+  jointSpheres.push(m);
+}
+
+/* ── Link tubes (cylinder stretched between joint positions) ── */
+// Radius per link: base→J1 thick, long arm links medium, wrist links thin.
+// scale.set(1, dist, 1) in setPose stretches only the Y-axis (length);
+// X/Z stay at the baked-in radius — no scaling error possible.
+const L_RAD = [0.024, 0.030, 0.026, 0.020, 0.017, 0.014];
+const linkMeshes = [];
+for(let i = 0; i < 6; i++){
+  const m = new THREE.Mesh(
+    new THREE.CylinderGeometry(L_RAD[i], L_RAD[i], 1, 10),
+    new THREE.MeshStandardMaterial({color:0x4a90d9, metalness:0.52, roughness:0.38})
+  );
+  m.castShadow = true;
+  robotRoot.add(m);
+  linkMeshes.push(m);
+}
+
+/* ── EE coordinate frame arrows ───────────────────────────── */
+const eeFrame = new THREE.Group();
+const makeArrow = (dir, color) =>
+  new THREE.ArrowHelper(new THREE.Vector3(...dir), new THREE.Vector3(), 0.13, color, 0.03, 0.02);
+const arrX = makeArrow([1,0,0], 0xff3333);
+const arrY = makeArrow([0,1,0], 0x33ff33);
+const arrZ = makeArrow([0,0,1], 0x3366ff);
+eeFrame.add(arrX, arrY, arrZ);
+eeFrame.visible = false;
+robotRoot.add(eeFrame);
+
+/* ── Path line ─────────────────────────────────────────────── */
+let pathLine = null;
+let showPath = true;
+
+function rebuildPath() {
+  if(pathLine){ robotRoot.remove(pathLine); pathLine=null; }
+  if(!showPath || waypoints.length < 2) return;
+  const pts = waypoints.filter(wp=>wp.q).map(wp => {
+    const p = getPos(fkEE(wp.q));
+    return new THREE.Vector3(p[0], p[1], p[2]);
+  });
+  if(pts.length < 2) return;
+  pathLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0xff7a30, linewidth:2})
+  );
+  robotRoot.add(pathLine);
+}
+
+/* ── Waypoint markers ──────────────────────────────────────── */
+const wpMarkers = [];
+let showWPM = true;
+
+function rebuildWPMarkers() {
+  wpMarkers.forEach(m=>robotRoot.remove(m)); wpMarkers.length=0;
+  if(!showWPM) return;
+  waypoints.forEach((wp,i)=>{
+    if(!wp.q) return; // skip wait/io nodes — no 3D position
+    const p = getPos(fkEE(wp.q));
+    const m = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.028),
+      new THREE.MeshStandardMaterial({
+        color: i===selWP ? 0x00c8e8 : 0xff7a30,
+        emissive: i===selWP ? 0x002233 : 0x1a0800,
+        metalness:0.7, roughness:0.3
+      })
+    );
+    m.position.set(p[0],p[1],p[2]);
+    m.castShadow=true;
+    robotRoot.add(m);
+    wpMarkers.push(m);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   POSE UPDATE  — positions every visual from FK
+══════════════════════════════════════════════════════════════ */
+function m4toThree(M) {
+  const t = new THREE.Matrix4();
+  t.set(
+    M[0][0],M[0][1],M[0][2],M[0][3],
+    M[1][0],M[1][1],M[1][2],M[1][3],
+    M[2][0],M[2][1],M[2][2],M[2][3],
+    M[3][0],M[3][1],M[3][2],M[3][3]
+  );
+  return t;
+}
+
+let robotQ = [...POSE_HOME];
+
+function setPose(q) {
+  robotQ = [...q];
+  const Ts = fkAll(q);
+
+  // Joint spheres track FK positions directly (J0 = base origin, J6 = TCP)
+  for(let i = 0; i <= 6; i++){
+    const p = getPos(Ts[i]);
+    jointSpheres[i].position.set(p[0], p[1], p[2]);
+  }
+
+  // Link tubes stretch between consecutive joint positions
+  for(let i = 0; i < 6; i++){
+    const p0 = new THREE.Vector3(...getPos(Ts[i]));
+    const p1 = new THREE.Vector3(...getPos(Ts[i+1]));
+    const dist = p0.distanceTo(p1);
+    if(dist < 1e-4){ linkMeshes[i].visible = false; continue; }
+    linkMeshes[i].visible = true;
+    linkMeshes[i].position.copy(p0.clone().add(p1).multiplyScalar(0.5));
+    const dir = p1.clone().sub(p0).normalize();
+    const up  = new THREE.Vector3(0, 1, 0);
+    const axis = up.clone().cross(dir);
+    if(axis.lengthSq() < 1e-6){
+      linkMeshes[i].quaternion.set(0, 0, dir.y < 0 ? 1 : 0, dir.y < 0 ? 0 : 1);
+    } else {
+      linkMeshes[i].quaternion.setFromAxisAngle(
+        axis.normalize(),
+        Math.acos(Math.max(-1, Math.min(1, up.dot(dir))))
+      );
+    }
+    linkMeshes[i].scale.set(1, dist, 1); // radius baked into geometry; only Y stretched
+  }
+
+  // EE frame
+  const eeT = Ts[6];
+  const ep = getPos(eeT);
+  eeFrame.position.set(ep[0],ep[1],ep[2]);
+  const em=m4toThree(eeT);
+  const _p=new THREE.Vector3(),eq=new THREE.Quaternion(),_s=new THREE.Vector3();
+  em.decompose(_p,eq,_s);
+  eeFrame.quaternion.copy(eq);
+  arrX.setDirection(new THREE.Vector3(eeT[0][0],eeT[1][0],eeT[2][0]));
+  arrY.setDirection(new THREE.Vector3(eeT[0][1],eeT[1][1],eeT[2][1]));
+  arrZ.setDirection(new THREE.Vector3(eeT[0][2],eeT[1][2],eeT[2][2]));
+
+  updateUI(q, ep);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   UI SYNC
+══════════════════════════════════════════════════════════════ */
+let _lock = false;
+
+function updateUI(q, ep) {
+  if(_lock) return;
+  _lock=true;
+
+  ['x','y','z'].forEach((ax,i)=>{
+    document.getElementById(`sl-${ax}`).value = ep[i].toFixed(3);
+    document.getElementById(`v-${ax}`).textContent = ep[i].toFixed(3);
+  });
+  q.forEach((v,i)=>{
+    const sl=document.getElementById(`sl-j${i}`), vl=document.getElementById(`vj${i}`);
+    if(sl) sl.value=(v*180/PI).toFixed(1);
+    if(vl) vl.textContent=(v*180/PI).toFixed(1)+'°';
+    updateSliderGradient(sl);
+  });
+  updateSliderGradient(document.getElementById('sl-x'));
+  updateSliderGradient(document.getElementById('sl-y'));
+  updateSliderGradient(document.getElementById('sl-z'));
+
+  const epStr=`X ${ep[0].toFixed(3)}  Y ${ep[1].toFixed(3)}  Z ${ep[2].toFixed(3)}`;
+  document.getElementById('sb-tcp').textContent=epStr;
+  document.getElementById('h-x').textContent=ep[0].toFixed(3)+' m';
+  document.getElementById('h-y').textContent=ep[1].toFixed(3)+' m';
+  document.getElementById('h-z').textContent=ep[2].toFixed(3)+' m';
+  _lock=false;
+}
+
+function updateSliderGradient(el) {
+  if(!el) return;
+  const min=parseFloat(el.min), max=parseFloat(el.max), val=parseFloat(el.value);
+  el.style.setProperty('--pct', ((val-min)/(max-min)*100)+'%');
+}
+
+/* ── Build joint slider rows ───────────────────────────────── */
+const JNAMES=['Base','Shoulder','Elbow','Wrist 1','Wrist 2','Wrist 3'];
+
+(function buildJSliders(){
+  const c=document.getElementById('jsliders'); c.innerHTML='';
+  JNAMES.forEach((name,i)=>{
+    const row=document.createElement('div'); row.className='sl-row';
+    row.innerHTML=`
+      <span class="sl-key" style="font-size:9px">J${i+1}</span>
+      <input type="range" class="j" id="sl-j${i}" min="-360" max="360" step="0.1"
+             value="${(POSE_HOME[i]*180/PI).toFixed(1)}">
+      <span class="sl-val j" id="vj${i}">${(POSE_HOME[i]*180/PI).toFixed(1)}°</span>`;
+    c.appendChild(row);
+    const sl=row.querySelector('input');
+    updateSliderGradient(sl);
+    sl.addEventListener('input',e=>{
+      if(_lock) return;
+      const q=[...robotQ]; q[i]=parseFloat(e.target.value)*PI/180;
+      setPose(q);
+    });
+  });
+})();
+
+/* ── EE slider events ──────────────────────────────────────── */
+['x','y','z'].forEach(ax=>{
+  const sl=document.getElementById(`sl-${ax}`);
+  sl.addEventListener('input',()=>{
+    if(_lock) return;
+    const tgt=[
+      parseFloat(document.getElementById('sl-x').value),
+      parseFloat(document.getElementById('sl-y').value),
+      parseFloat(document.getElementById('sl-z').value),
+    ];
+    const {q, res}=ikPos(tgt, robotQ);
+    if(res < 0.06) setPose(q);
+    const ikEl=document.getElementById('ik-status');
+    ikEl.textContent = res<0.001 ? '' : res<0.01 ? `IK Δ ${(res*1000).toFixed(1)} mm` : `IK unreachable Δ ${(res*1000).toFixed(0)} mm`;
+    ikEl.style.color = res<0.01 ? 'var(--text2)' : 'var(--red)';
+  });
+  sl.addEventListener('input',()=>updateSliderGradient(sl));
+});
+
+// TCP speed (mm/s) for auto-speed waypoints (no time set)
+let tcpSpeed = 500; // mm/s default
+document.getElementById('tcp-speed-inp').addEventListener('change',e=>{
+  let v=parseInt(e.target.value);
+  if(isNaN(v)||v<250){ v=250; }
+  if(v>1500){ v=1500; }
+  e.target.value=v;
+  tcpSpeed=v;
+});
+document.getElementById('tcp-speed-inp').addEventListener('blur',e=>{
+  let v=parseInt(e.target.value);
+  if(isNaN(v)||v<250){ v=250; }
+  if(v>1500){ v=1500; }
+  e.target.value=v; tcpSpeed=v;
+});
+
+/* ── Tab switching ─────────────────────────────────────────── */
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+    document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+    btn.classList.add('on');
+    document.getElementById(`pane-${btn.dataset.t}`).classList.add('on');
+    const labels={jog:'TEACH',cfg:'CONFIG'};
+    document.getElementById('sb-mode').textContent=labels[btn.dataset.t]||btn.dataset.t.toUpperCase();
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════
+   WAYPOINT SYSTEM
+══════════════════════════════════════════════════════════════ */
+let waypoints=[], selWP=-1;
+
+function recordWP(){
+  const n=waypoints.length+1;
+  const ep=getPos(fkEE(robotQ));
+  waypoints.push({ q:[...robotQ], name:`Waypoint ${n}`, pos:[...ep], time:null });
+  renderWPList();
+  rebuildPath(); rebuildWPMarkers();
+  _syncWPCount();
+  pushHistory();
+}
+window.recordWP=recordWP;
+
+function addWait(){
+  const n=waypoints.length+1;
+  waypoints.push({ type:'wait', q:null, pos:null, name:`Wait ${n}`, time:null, duration:1.0 });
+  renderWPList(); rebuildPath(); rebuildWPMarkers();
+  _syncWPCount();
+  pushHistory();
+}
+window.addWait=addWait;
+
+function deleteWP(idx){
+  waypoints.splice(idx,1);
+  if(selWP>=waypoints.length) selWP=waypoints.length-1;
+  renderWPList(); rebuildPath(); rebuildWPMarkers();
+  _syncWPCount();
+  pushHistory();
+}
+window.deleteWP=deleteWP;
+
+function clearWPs(){
+  if(!waypoints.length) return;
+  if(confirm('Delete all waypoints?')){
+    waypoints=[]; selWP=-1;
+    renderWPList(); rebuildPath(); rebuildWPMarkers();
+    _syncWPCount();
+    pushHistory();
+    showToast('All waypoints cleared','warn');
+  }
+}
+window.clearWPs=clearWPs;
+
+function insertWaitAt(idx){
+  const n=waypoints.length+1;
+  waypoints.splice(idx,0,{type:'wait',q:null,pos:null,name:`Wait ${n}`,time:null,duration:1.0});
+  selWP=idx;
+  renderWPList(); rebuildPath(); rebuildWPMarkers();
+  _syncWPCount();
+  pushHistory();
+}
+window.insertWaitAt=insertWaitAt;
+
+// UR20 max joint speeds (rad/s) — from safety block normalJointSpeeds
+const UR20_MAX_SPDS = [2.2944, 2.2944, 2.81799, 3.86519, 3.86519, 3.86519];
+const WP_TIME_MIN_ABS = 0.5; // absolute floor (s) — robot enforces physical limit anyway
+
+function calcMinTime(qPrev, qCur){
+  let tMin = 0;
+  for(let j=0;j<6;j++) tMin=Math.max(tMin, Math.abs(qCur[j]-qPrev[j])/UR20_MAX_SPDS[j]);
+  return Math.max(WP_TIME_MIN_ABS, +tMin.toFixed(3));
+}
+
+/* ── Insert zone factory ─────────────────────────────────── */
+function _makeInsZone(pos, i){
+  const at = pos==='top' ? i : i+1;
+  const zone = document.createElement('div');
+  zone.className = 'wp-ins-zone '+pos;
+
+  const plusBtn = document.createElement('button');
+  plusBtn.className = 'wp-ins-btn'; plusBtn.textContent = '+';
+
+  const choices = document.createElement('div');
+  choices.className = 'wp-ins-choices';
+
+  const bWP   = document.createElement('button'); bWP.className='wp-pop-wp';   bWP.textContent='📍 Waypoint';
+  const sep   = document.createElement('span');   sep.className='wp-pop-sep';
+  const bWait = document.createElement('button'); bWait.className='wp-pop-wait'; bWait.textContent='⏸ Wait';
+  const bX    = document.createElement('button'); bX.className='wp-pop-cancel'; bX.textContent='×';
+
+  function collapse(){ zone.classList.remove('expanded'); }
+  bWP.addEventListener('click',  e=>{ e.stopPropagation(); collapse(); insertWPAt(at); });
+  bWait.addEventListener('click',e=>{ e.stopPropagation(); collapse(); insertWaitAt(at); });
+  bX.addEventListener('click',   e=>{ e.stopPropagation(); collapse(); });
+
+  plusBtn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const wasOpen = zone.classList.contains('expanded');
+    // collapse every other open zone first
+    document.querySelectorAll('.wp-ins-zone.expanded').forEach(z=>z.classList.remove('expanded'));
+    if(!wasOpen) zone.classList.add('expanded');
+  });
+
+  choices.append(bWP, sep, bWait, bX);
+  zone.append(plusBtn, choices);
+  return zone;
+}
+
+// Collapse all insert zones when clicking outside the list
+document.addEventListener('click', ()=>{
+  document.querySelectorAll('.wp-ins-zone.expanded').forEach(z=>z.classList.remove('expanded'));
+});
+
+function renderWPList(){
+  const ul=document.getElementById('wp-ul'); ul.innerHTML='';
+
+  waypoints.forEach((wp,i)=>{
+    const wtype = wp.type||'moveJ';
+    const li = document.createElement('li');
+    li.className = 'wp-li'+(i===selWP?' sel':'');
+    li.draggable = true; li.dataset.idx = i;
+
+    // ── Top insert zone ──────────────────────────────────────
+    li.appendChild(_makeInsZone('top', i));
+
+    // ── Main content row ─────────────────────────────────────
+    const main = document.createElement('div'); main.className='wp-main';
+
+    const drag = document.createElement('span'); drag.className='wp-drag'; drag.textContent='⠿⠿';
+    const num  = document.createElement('span'); num.className='wp-num'; num.textContent=`WP${i+1}`;
+
+    const typeBadge = document.createElement('span');
+    typeBadge.className='wp-type wp-type-'+(wtype==='moveJ'?'j':wtype==='moveL'?'l':wtype==='wait'?'w':'io');
+    typeBadge.textContent=wtype==='moveJ'?'J':wtype==='moveL'?'L':wtype==='wait'?'WAIT':'I/O';
+
+    const body   = document.createElement('div'); body.className='wp-body';
+    const nameEl = document.createElement('div'); nameEl.className='wp-name'; nameEl.textContent=wp.name;
+    const coords = document.createElement('div'); coords.className='wp-coords';
+    if(wtype==='wait')      coords.textContent=`Pause for ${(wp.duration||1).toFixed(2)} s`;
+    else if(wtype==='io')   coords.textContent=`${wp.io&&wp.io.signal||'?'} = ${wp.io&&wp.io.value?'HIGH':'LOW'}`;
+    else                    coords.textContent='('+wp.pos.map(v=>v.toFixed(3)).join(', ')+')';
+
+    body.appendChild(nameEl); body.appendChild(coords);
+
+    if(wtype==='wait'){
+      const ww=document.createElement('div'); ww.className='wp-wait-wrap';
+      const wl=document.createElement('span'); wl.className='wp-time-lbl'; wl.textContent='⏱ Duration:';
+      const wi=document.createElement('input'); wi.className='wp-wait-inp';
+      wi.type='number'; wi.min='0.1'; wi.step='0.1'; wi.value=(wp.duration||1).toFixed(2);
+      const wu=document.createElement('span'); wu.className='wp-time-unit'; wu.textContent='s';
+      wi.addEventListener('blur',()=>{ let v=parseFloat(wi.value); if(isNaN(v)||v<0.1)v=0.1; wp.duration=+v.toFixed(3); wi.value=wp.duration.toFixed(2); coords.textContent=`Pause for ${wp.duration.toFixed(2)} s`; pushHistory(); });
+      wi.addEventListener('keydown',e2=>{ if(e2.key==='Enter'){e2.preventDefault();wi.blur();} });
+      wi.addEventListener('click',e2=>e2.stopPropagation());
+      ww.append(wl,wi,wu); body.appendChild(ww);
+    } else {
+      const qPrev=i>0?(waypoints[i-1].q||wp.q):wp.q;
+      const tMin=calcMinTime(qPrev,wp.q);
+      const timeWrap=document.createElement('div'); timeWrap.className='wp-time-wrap';
+      const timeLbl=document.createElement('span'); timeLbl.className='wp-time-lbl'; timeLbl.textContent='⏱';
+      const timeInp=document.createElement('input'); timeInp.className='wp-time-inp';
+      timeInp.type='number'; timeInp.min='0.1'; timeInp.step='0.1'; timeInp.placeholder='auto';
+      if(wp.time!==null) timeInp.value=wp.time.toFixed(2);
+      const timeUnit=document.createElement('span'); timeUnit.className='wp-time-unit'; timeUnit.textContent='s';
+      const commitTime=()=>{
+        const raw=parseFloat(timeInp.value);
+        if(isNaN(raw)||timeInp.value.trim()===''){
+          wp.time=null; timeInp.value=''; timeInp.classList.remove('clamped'); pushHistory(); return;
+        }
+        if(raw<tMin){ wp.time=tMin; timeInp.value=tMin.toFixed(2); timeInp.classList.add('clamped'); timeInp.title=`Min: ${tMin.toFixed(2)} s`; }
+        else { wp.time=+raw.toFixed(3); timeInp.classList.remove('clamped'); timeInp.title=''; }
+        pushHistory();
+      };
+      timeInp.addEventListener('blur',commitTime);
+      timeInp.addEventListener('keydown',e2=>{ if(e2.key==='Enter'){e2.preventDefault();commitTime();timeInp.blur();} });
+      timeInp.addEventListener('click',e2=>e2.stopPropagation());
+      timeWrap.append(timeLbl,timeInp,timeUnit); body.appendChild(timeWrap);
+    }
+
+    const xBtn=document.createElement('button'); xBtn.className='wp-x'; xBtn.textContent='×';
+    xBtn.addEventListener('click',e=>{e.stopPropagation();deleteWP(i);});
+
+    main.append(drag,num,typeBadge,body,xBtn);
+    li.appendChild(main);
+
+    // ── Bottom insert zone ───────────────────────────────────
+    li.appendChild(_makeInsZone('bot', i));
+
+    // ── Rename dblclick ──────────────────────────────────────
+    nameEl.addEventListener('dblclick',e=>{
+      e.stopPropagation();
+      const inp=document.createElement('input'); inp.className='wp-rename-inp';
+      inp.value=wp.name; nameEl.replaceWith(inp); inp.focus(); inp.select();
+      const commit=()=>{ const v=inp.value.trim(); if(v) wp.name=v; renderWPList(); };
+      inp.addEventListener('blur',commit);
+      inp.addEventListener('keydown',e2=>{ if(e2.key==='Enter'){e2.preventDefault();commit();} if(e2.key==='Escape') renderWPList(); });
+    });
+
+    // ── Select on click ──────────────────────────────────────
+    li.addEventListener('click',e=>{
+      if(e.target===xBtn||e.target===drag) return;
+      selWP=i; renderWPList(); rebuildWPMarkers();
+    });
+
+    // ── Drag-and-drop (ALL node types, including waits) ──────
+    li.addEventListener('dragstart',e=>{
+      e.dataTransfer.setData('text/plain',String(i));
+      e.dataTransfer.effectAllowed='move';
+      setTimeout(()=>li.classList.add('dragging'),0);
+    });
+    li.addEventListener('dragend',()=>li.classList.remove('dragging'));
+    li.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';li.classList.add('drag-over');});
+    li.addEventListener('dragleave',()=>li.classList.remove('drag-over'));
+    li.addEventListener('drop',e=>{
+      e.preventDefault(); li.classList.remove('drag-over');
+      const from=parseInt(e.dataTransfer.getData('text/plain'));
+      const to=parseInt(li.dataset.idx);
+      if(from===to) return;
+      const moved=waypoints.splice(from,1)[0];
+      waypoints.splice(to,0,moved);
+      selWP=to; renderWPList(); rebuildPath(); rebuildWPMarkers();
+      _syncWPCount(); pushHistory();
+    });
+
+    ul.appendChild(li);
+  });
+}
+
+function insertWPAt(idx){
+  const n=waypoints.length+1;
+  const ep=getPos(fkEE(robotQ));
+  waypoints.splice(idx,0,{q:[...robotQ],name:`Waypoint ${n}`,pos:[...ep],time:null});
+  selWP=idx;
+  renderWPList(); rebuildPath(); rebuildWPMarkers();
+  _syncWPCount();
+  pushHistory();
+}
+window.insertWPAt=insertWPAt;
+
+function gotoSel(){
+  if(selWP<0||selWP>=waypoints.length) return;
+  animateTo(waypoints[selWP].q, 900);
+}
+window.gotoSel=gotoSel;
+
+/* ══════════════════════════════════════════════════════════════
+   PRESETS
+══════════════════════════════════════════════════════════════ */
+const PRESETS = { home:POSE_HOME, zero:POSE_ZERO, up:POSE_UP };
+window.goPreset=(key)=>animateTo(PRESETS[key]||POSE_HOME, 900);
+
+/* ══════════════════════════════════════════════════════════════
+   ANIMATION
+══════════════════════════════════════════════════════════════ */
+function slerp(t){ return t*t*(3-2*t); }
+
+function animateTo(qTarget, durationMs=900){
+  animInterrupt=false;
+  return new Promise(resolve=>{
+    const qS=[...robotQ];
+    const t0=performance.now();
+    function step(){
+      if(animInterrupt){ resolve(); return; }
+      const t=Math.min(1,(performance.now()-t0)/durationMs);
+      setPose(qS.map((v,j)=>v+slerp(t)*(qTarget[j]-v)));
+      if(t>=1){ resolve(); return; }
+      setTimeout(step,14);
+    }
+    step();
+  });
+}
+
+let playing=false, paused=false, stopFlag=false, animInterrupt=false, resumeFromWP=0;
+
+function setPlaybackUI(state){
+  // states: 'idle' | 'playing' | 'paused'
+  const playBtn    = document.getElementById('play-btn');
+  const pauseBtn   = document.getElementById('pause-btn');
+  const stopBtn    = document.getElementById('stop-btn');
+  const restartBtn = document.getElementById('restart-btn');
+  const badge      = document.getElementById('playing-badge');
+  if(state==='playing'){
+    playBtn.style.display='none';
+    pauseBtn.style.display=''; stopBtn.style.display=''; restartBtn.style.display='';
+    badge.classList.add('show');
+  } else if(state==='paused'){
+    playBtn.textContent='▶ Resume'; playBtn.style.display='';
+    pauseBtn.style.display='none'; stopBtn.style.display=''; restartBtn.style.display='';
+    badge.classList.remove('show');
+  } else { // idle
+    playBtn.textContent='▶ Play '; playBtn.style.display='';
+    pauseBtn.style.display='none'; stopBtn.style.display='none'; restartBtn.style.display='none';
+    badge.classList.remove('show');
+  }
+}
+
+async function _runPath(startIdx){
+  playing=true; paused=false; stopFlag=false; animInterrupt=false;
+  setPlaybackUI('playing');
+  const FRAME_MS=14;
+  const autoMs=Math.round((30+(1500-tcpSpeed)/(1500-250)*170)*FRAME_MS);
+  for(let i=startIdx;i<waypoints.length;i++){
+    if(stopFlag||paused){ resumeFromWP=i; break; }
+    selWP=i; renderWPList(); rebuildWPMarkers();
+    const wp=waypoints[i];
+    const wtype=wp.type||'moveJ';
+
+    if(wtype==='wait'){
+      // Interruptible sleep: poll in 50ms chunks so stop/pause respond quickly
+      const totalMs=(wp.duration||1)*1000;
+      const chunk=50; let elapsed=0;
+      while(elapsed<totalMs){
+        if(stopFlag||paused){ resumeFromWP=i+(stopFlag?0:1); break; }
+        await new Promise(r=>setTimeout(r,Math.min(chunk,totalMs-elapsed)));
+        elapsed+=chunk;
+      }
+      if(stopFlag||paused) break;
+    } else if(wtype==='io'){
+      // I/O: no motion, just highlight the node briefly
+      await new Promise(r=>setTimeout(r,300));
+      if(stopFlag||paused){ resumeFromWP=i+(stopFlag?0:1); break; }
+    } else {
+      // moveJ or moveL — both animate via joint angles
+      const durationMs=wp.time!==null ? Math.round(wp.time*1000) : autoMs;
+      await animateTo(wp.q, durationMs);
+      if(stopFlag||paused){ resumeFromWP=i+(stopFlag?0:1); break; }
+    }
+  }
+  playing=false;
+  if(paused){
+    setPlaybackUI('paused');
+  } else {
+    // finished naturally or stopped
+    if(!stopFlag){ selWP=-1; resumeFromWP=0; renderWPList(); rebuildWPMarkers(); }
+    setPlaybackUI(stopFlag?'paused':'idle');
+    if(stopFlag) paused=true; // treat hard-stop as paused so Resume works
+  }
+}
+
+async function playPath(){ // start from beginning
+  if(!waypoints.length){ showToast('Record some waypoints first!','warn'); return; }
+  if(playing) return;
+  resumeFromWP=0; paused=false;
+  await _runPath(0);
+}
+
+window.playOrResume=async function(){
+  if(!waypoints.length){ showToast('Record some waypoints first!','warn'); return; }
+  if(playing) return;
+  await _runPath(paused ? resumeFromWP : 0);
+};
+
+window.pausePath=function(){
+  if(!playing) return;
+  paused=true; stopFlag=true; animInterrupt=true; // animInterrupt halts animateTo frame; stopFlag+paused used by _runPath loop
+};
+
+window.stopPath=function(){
+  if(!playing && !paused){ return; }
+  paused=false; stopFlag=true; animInterrupt=true; resumeFromWP=0; playing=false;
+  selWP=-1; renderWPList(); rebuildWPMarkers();
+  setPlaybackUI('idle');
+};
+
+window.restartPath=async function(){
+  if(playing){ paused=false; stopFlag=true; animInterrupt=true; await new Promise(r=>setTimeout(r,50)); }
+  resumeFromWP=0; paused=false;
+  await _runPath(0);
+};
+
+window.playPath=playPath;
+
+// keyboard: P = play/resume, Escape = stop
+document.removeEventListener('keydown',window._kbHandler); // remove if re-run
+
+/* ══════════════════════════════════════════════════════════════
+   SETTINGS TOGGLES
+══════════════════════════════════════════════════════════════ */
+window.setShowFrame=(v)=>{ eeFrame.visible=v; };
+window.setShowPath=(v)=>{ showPath=v; rebuildPath(); };
+window.setShowWPM=(v)=>{ showWPM=v; rebuildWPMarkers(); };
+window.setShadow=(v)=>{ renderer.shadowMap.enabled=v; sun.castShadow=v; };
+
+/* ══════════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+══════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown',e=>{
+  // Allow Ctrl+Z / Ctrl+Y even when not in an input
+  if((e.ctrlKey||e.metaKey) && e.code==='KeyZ' && !e.shiftKey){ e.preventDefault(); undoWP(); return; }
+  if((e.ctrlKey||e.metaKey) && (e.code==='KeyY'||(e.code==='KeyZ'&&e.shiftKey))){ e.preventDefault(); redoWP(); return; }
+  if((e.ctrlKey||e.metaKey) && e.code==='KeyS'){ e.preventDefault(); saveProject(); return; }
+  if(e.target.tagName==='INPUT') return;
+  if(e.code==='Space')  { e.preventDefault(); recordWP(); }
+  if(e.code==='KeyP')   { e.preventDefault(); playing ? pausePath() : window.playOrResume(); }
+  if(e.code==='Escape') stopPath();
+  if(e.code==='KeyH')   goPreset('home');
+});
+
+/* ══════════════════════════════════════════════════════════════
+   IMPORT — FILE PARSING
+══════════════════════════════════════════════════════════════ */
+
+// ── Arduino .angles format spec ─────────────────────────────
+// Lines starting with # are comments / header.
+// Data lines (CSV):  WaypointName, j1_deg, j2_deg, j3_deg, j4_deg, j5_deg, j6_deg[, time_s]
+// Angles are in DEGREES (encoder counts → degrees done on Arduino side).
+// Optional 8th column is move time in seconds.
+// Example:
+//   # UR20 Arduino Teach Pendant Export v1.0
+//   WP1,  0.000, -90.000,   0.000, -90.000, -90.000,  0.000
+//   WP2, 15.500, -75.200,  10.100, -85.000, -88.500,  5.000, 2.500
+// ────────────────────────────────────────────────────────────
+
+function normalizeWPType(type){
+  const t=String(type||'moveJ').trim().toLowerCase();
+  if(t==='wait'||t==='sleep'||t==='ur-wait'||t==='ur-sleep') return 'wait';
+  if(t==='io'||t==='i/o'||t==='setio'||t==='set_io'||t==='ur-set-io') return 'io';
+  if(t==='movel'||t==='move_l'||t==='linear'||t==='ur-movel'||t==='ur-linear-move') return 'moveL';
+  return 'moveJ';
+}
+
+function isValidQ(q){
+  return Array.isArray(q) && q.length===6 && q.every(v=>Number.isFinite(Number(v)));
+}
+
+function cleanQ(q){ return q.map(v=>Number(v)); }
+
+function importWaypoints(newWPs){
+  const valid=[];
+  (newWPs||[]).forEach(w=>{
+    const type=normalizeWPType(w.type);
+    if(type==='wait'){
+      const dur=Number(w.duration ?? w.time ?? 1.0);
+      valid.push({ type:'wait', q:null, pos:null,
+                   name:w.name||`Wait ${valid.length+1}`,
+                   time:null, duration:Number.isFinite(dur)&&dur>0?dur:1.0 });
+    } else if(type==='io'){
+      valid.push({ type:'io', q:null, pos:null,
+                   name:w.name||`Set I/O ${valid.length+1}`,
+                   time:null, duration:null, io:w.io||{} });
+    } else {
+      if(!isValidQ(w.q)) return;   // never import fake [0,0,0,0,0,0] placeholders
+      const q=cleanQ(w.q);
+      let tm=(w.time!==undefined&&w.time!==null&&w.time!=='') ? Number(w.time) : null;
+      if(!Number.isFinite(tm)||tm<=0) tm=null;
+      valid.push({ type, q, pos:getPos(fkEE(q)),
+                   name:w.name||`Waypoint ${valid.length+1}`,
+                   time:tm, duration:null });
+    }
+  });
+
+  if(!valid.length){ showToast('No valid waypoints found in file','error'); return; }
+  const mode = waypoints.length
+    ? confirm(`Add ${valid.length} item(s) to the existing ${waypoints.length}?\n\nOK = append  ·  Cancel = replace all`)
+    : false;
+  if(!mode) waypoints=[];
+  const offset=waypoints.length;
+  valid.forEach((w,i)=>{
+    if(!w.name) w.name=(w.type==='wait'?`Wait ${offset+i+1}`:w.type==='io'?`Set I/O ${offset+i+1}`:`Waypoint ${offset+i+1}`);
+    waypoints.push(w);
+  });
+  selWP=-1;
+  renderWPList(); rebuildPath(); rebuildWPMarkers();
+  _syncWPCount();
+  pushHistory();
+  showToast(`Imported ${valid.length} item(s)`,'success');
+}
+
+function parseURPX(text){
+  let json;
+  try{ json=JSON.parse(text); }catch(e){ showToast('URPX parse error: not valid JSON','error'); return []; }
+
+  // ── Generic unwrappers used because PolyScope X changes parameter shapes between versions ──
+  function numVal(v){
+    if(v===null||v===undefined) return null;
+    if(typeof v==='number') return Number.isFinite(v)?v:null;
+    if(typeof v==='string'){
+      const n=Number(v.trim()); return Number.isFinite(n)?n:null;
+    }
+    if(Array.isArray(v) && v.length===1) return numVal(v[0]);
+    if(typeof v==='object'){
+      if(v.value!==undefined){ const n=numVal(v.value); if(n!==null) return n; }
+      if(v.entity!==undefined){ const n=numVal(v.entity); if(n!==null) return n; }
+      if(v.currentValue!==undefined){ const n=numVal(v.currentValue); if(n!==null) return n; }
+      if(v.defaultValue!==undefined){ const n=numVal(v.defaultValue); if(n!==null) return n; }
+    }
+    return null;
+  }
+
+  function strVal(v){
+    if(v===null||v===undefined) return null;
+    if(typeof v==='string') return v;
+    if(typeof v==='number'||typeof v==='boolean') return String(v);
+    if(typeof v==='object'){
+      if(v.value!==undefined){ const s=strVal(v.value); if(s!==null) return s; }
+      if(v.entity!==undefined){ const s=strVal(v.entity); if(s!==null) return s; }
+      if(v.name!==undefined){ const s=strVal(v.name); if(s!==null) return s; }
+      if(v.label!==undefined){ const s=strVal(v.label); if(s!==null) return s; }
+    }
+    return null;
+  }
+
+  function arr6(v){
+    if(v===null||v===undefined) return null;
+    if(Array.isArray(v)){
+      const nums=v.map(numVal);
+      return nums.length>=6 && nums.slice(0,6).every(n=>n!==null) ? nums.slice(0,6) : null;
+    }
+    if(typeof v==='object'){
+      const keys=[
+        ['base','shoulder','elbow','wrist1','wrist2','wrist3'],
+        ['base','shoulder','elbow','wrist_1','wrist_2','wrist_3'],
+        ['j0','j1','j2','j3','j4','j5'],
+        ['joint0','joint1','joint2','joint3','joint4','joint5'],
+        ['q0','q1','q2','q3','q4','q5'],
+        ['0','1','2','3','4','5']
+      ];
+      for(const ks of keys){
+        const nums=ks.map(k=>numVal(v[k]));
+        if(nums.every(n=>n!==null)) return nums;
+      }
+      if(v.positions!==undefined){ const q=arr6(v.positions); if(q) return q; }
+      if(v.values!==undefined){ const q=arr6(v.values); if(q) return q; }
+      if(v.joints!==undefined){ const q=arr6(v.joints); if(q) return q; }
+      if(v.q!==undefined){ const q=arr6(v.q); if(q) return q; }
+    }
+    return null;
+  }
+
+  function poseXYZ(v){
+    if(v===null||v===undefined) return null;
+    if(Array.isArray(v)){
+      const nums=v.map(numVal);
+      return nums.length>=3 && nums.slice(0,3).every(n=>n!==null) ? nums.slice(0,3) : null;
+    }
+    if(typeof v==='object'){
+      const x=numVal(v.x ?? v.X ?? v[0]);
+      const y=numVal(v.y ?? v.Y ?? v[1]);
+      const z=numVal(v.z ?? v.Z ?? v[2]);
+      if(x!==null&&y!==null&&z!==null) return [x,y,z];
+      if(v.position!==undefined){ const p=poseXYZ(v.position); if(p) return p; }
+      if(v.pose!==undefined){ const p=poseXYZ(v.pose); if(p) return p; }
+      if(v.targetPose!==undefined){ const p=poseXYZ(v.targetPose); if(p) return p; }
+    }
+    return null;
+  }
+
+  function findDeep(obj, predicate, seen=new WeakSet()){
+    if(!obj||typeof obj!=='object') return null;
+    if(seen.has(obj)) return null;
+    seen.add(obj);
+    try{ if(predicate(obj)) return obj; }catch(e){}
+    if(Array.isArray(obj)){
+      for(const item of obj){ const r=findDeep(item,predicate,seen); if(r) return r; }
+    } else {
+      for(const k of Object.keys(obj)){
+        const r=findDeep(obj[k],predicate,seen); if(r) return r;
+      }
+    }
+    return null;
+  }
+
+  function findQ(params){
+    const direct=[params?.waypoint?.qNear, params?.waypoint?.joints, params?.waypoint?.q,
+                  params?.qNear, params?.joints, params?.jointPositions, params?.jointPosition,
+                  params?.target?.qNear, params?.target?.joints, params?.target?.q,
+                  params?.targetWaypoint?.qNear, params?.targetWaypoint?.joints, params?.targetWaypoint?.q];
+    for(const cand of direct){ const q=arr6(cand); if(q) return q; }
+    const deep=findDeep(params, o=>!!arr6(o) && (
+      ['base','shoulder','elbow','wrist1','wrist2','wrist3'].some(k=>Object.prototype.hasOwnProperty.call(o,k)) ||
+      ['j0','j1','j2','j3','j4','j5'].some(k=>Object.prototype.hasOwnProperty.call(o,k)) ||
+      ['q0','q1','q2','q3','q4','q5'].some(k=>Object.prototype.hasOwnProperty.call(o,k))
+    ));
+    return deep ? arr6(deep) : null;
+  }
+
+  function findPose(params){
+    const direct=[params?.waypoint?.pose, params?.pose, params?.targetPose, params?.target?.pose, params?.targetWaypoint?.pose];
+    for(const cand of direct){ const p=poseXYZ(cand); if(p) return p; }
+    const deep=findDeep(params, o=>!!poseXYZ(o) && (
+      Object.prototype.hasOwnProperty.call(o,'x') || Object.prototype.hasOwnProperty.call(o,'position') || Object.prototype.hasOwnProperty.call(o,'pose')
+    ));
+    return deep ? poseXYZ(deep) : null;
+  }
+
+  function nodeName(node,p,fallback){
+    const candidates=[p?.variable, p?.name, p?.waypoint?.name, p?.target?.name, node.programLabel, node.label, node.name];
+    for(const c of candidates){
+      const s=strVal(c);
+      if(s && !s.includes('program-node-label')) return s.replace(/_/g,' ');
+    }
+    return fallback;
+  }
+
+  const structured=[];
+
+  function parseMoveNode(node){
+    const cn=node.contributedNode||{};
+    const p=cn.parameters||{};
+    const t=String(cn.type||'').toLowerCase();
+    let mt=strVal(p.moveType)||strVal(p.type)||'';
+    mt=mt.toLowerCase();
+    const type=(mt.includes('movel')||mt.includes('linear')||t.includes('movel')||t.includes('linear')) ? 'moveL' : 'moveJ';
+    let q=findQ(p);
+    if(!q){
+      const pose=findPose(p);
+      if(pose) q=ikPos(pose, robotQ).q;
+    }
+    if(!isValidQ(q)) return null;
+    let time=null;
+    const spd=p.advanced?.speed || p.speed || p.motion || p.profile || p.motionProfile || null;
+    const motionValue=String(strVal(spd?.motionValue)||strVal(spd?.speedType)||'').toLowerCase();
+    if(motionValue.includes('time') || spd?.time!==undefined || spd?.duration!==undefined || p.time!==undefined || p.duration!==undefined){
+      const tv=numVal(spd?.time) ?? numVal(spd?.duration) ?? numVal(p.time) ?? numVal(p.duration);
+      if(tv!==null&&tv>0) time=tv;
+    }
+    return { type, q:cleanQ(q), time, name:nodeName(node,p,`${type==='moveL'?'MoveL':'Waypoint'} ${structured.length+1}`) };
+  }
+
+  function parseWaitNode(node){
+    const p=node.contributedNode?.parameters||{};
+    const dur=numVal(p.time?.entity?.value) ?? numVal(p.time?.value) ?? numVal(p.time) ??
+              numVal(p.timeSeconds) ?? numVal(node.timeSeconds) ??
+              numVal(p.duration) ?? numVal(p.waitDuration) ??
+              numVal(p.waitTime) ?? numVal(p.value) ?? 1;
+    return { type:'wait', duration:(dur&&dur>0)?dur:1, name:nodeName(node,p,`Wait ${structured.length+1}`) };
+  }
+
+  function parseIONode(node){
+    const p=node.contributedNode?.parameters||{};
+    const sig=p.signal||p.output||p.io||{};
+    const sigID=strVal(sig.signalID)||strVal(sig.id)||strVal(sig.name)||strVal(sig.signal)||'DO 0';
+    const raw=numVal(p.value);
+    const sv=strVal(p.value);
+    const val=raw!==null ? !!raw : /true|high|1/i.test(sv||'');
+    return { type:'io', name:`I/O: ${sigID} = ${val?'HIGH':'LOW'}`, io:{signal:sigID,value:val} };
+  }
+
+  function isMoveType(t){
+    return ['ur-move-to','ur-movej','ur-movel','ur-joint-move','ur-linear-move','movej','movel'].includes(t) ||
+           (t.includes('move') && !t.includes('frame'));
+  }
+
+  const seenNodes=new WeakSet();
+  function walkProgram(node){
+    if(!node||typeof node!=='object'||seenNodes.has(node)) return;
+    seenNodes.add(node);
+    if(Array.isArray(node)){ node.forEach(walkProgram); return; }
+
+    // Some URPX examples serialize Wait directly as {nodeType:'Wait', waitType:'Time', timeSeconds:n}.
+    if(String(node.nodeType||'').toLowerCase()==='wait' || (String(node.waitType||'').toLowerCase()==='time' && node.timeSeconds!==undefined)){
+      structured.push(parseWaitNode(node));
+      if(Array.isArray(node.children)) node.children.forEach(walkProgram);
+      return;
+    }
+
+    const cn=node.contributedNode;
+    if(cn&&typeof cn==='object'){
+      const t=String(cn.type||'').toLowerCase();
+      const p=cn.parameters||{};
+      try{
+        if(isMoveType(t)){
+          const r=parseMoveNode(node); if(r) structured.push(r);
+        } else if(['ur-wait','ur-wait-time','ur-sleep','wait','sleep'].includes(t)){
+          structured.push(parseWaitNode(node));
+        } else if(['ur-set-io','ur-set-digital-output','ur-set-output'].includes(t)){
+          structured.push(parseIONode(node));
+        } else if((t==='ur-script'||t==='script') && (p.expressionString!==undefined||p.sourceCode!==undefined||p.script!==undefined||p.code!==undefined)){
+          // PolyScope X's built-in Script node uses parameters.expressionString.
+          // Older/local simulator exports may use sourceCode/script/code, so keep those aliases too.
+          const script=strVal(p.expressionString)||strVal(p.sourceCode)||strVal(p.script)||strVal(p.code)||'';
+          parseScript(script).forEach(r=>structured.push(r));
+        }
+      }catch(e){ /* keep walking; one bad node must not kill the import */ }
+      if(Array.isArray(node.children)) node.children.forEach(walkProgram);
+      return;
+    }
+
+    if(Array.isArray(node.children)) node.children.forEach(walkProgram);
+    for(const k of Object.keys(node)){
+      if(k==='children'||k==='urscript'||k==='script') continue;
+      const val=node[k];
+      if(val&&typeof val==='object') walkProgram(val);
+    }
+  }
+
+  // Preserve visual program-tree order first.
+  walkProgram(json.program?.programContent?.children || json.program?.children || json.programContent?.children || json.children || json);
+
+  // URPX also stores a flattened URScript. This is often the most reliable source,
+  // and it fixes cases where PolyScope X node schemas changed but the emitted script is valid.
+  const scriptText = strVal(json.program?.urscript?.script) || strVal(json.urscript?.script) || '';
+  const scriptWPs = scriptText ? parseScript(scriptText) : [];
+
+  // If the script has at least as many executable items, use it as authoritative.
+  // This prevents missing movej/sleep commands caused by schema drift in contributedNode parameters.
+  if(scriptWPs.length && scriptWPs.length>=structured.length) return scriptWPs;
+  if(structured.length) return structured;
+  return scriptWPs;
+}
+
+function parseScript(text){
+  const out=[];
+  const raw=String(text||'').replace(/\r/g,'');
+
+  function stripLineComments(src){
+    return src.split('\n').map(line=>line.replace(/#.*$/,'')).join('\n');
+  }
+
+  // Our URPX exporter may encode waits as timed hold-MoveJ commands so
+  // PolyScope X/URSim imports them as valid MoveJ nodes instead of yellow
+  // Script nodes. Preserve the semantic wait when this file is re-imported.
+  const rawNormalized=raw.replace(
+    /^[ \t]*#\s*UR20_SIM_WAIT\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)[^\n]*\n[ \t]*movej\s*\([\s\S]*?\)\s*/gmi,
+    (_m,dur)=>`sleep(${dur})\n`
+  );
+  const src=stripLineComments(rawNormalized);
+
+  function findCloseParen(s, open){
+    let depth=0, quote=null;
+    for(let i=open;i<s.length;i++){
+      const ch=s[i], prev=s[i-1];
+      if(quote){ if(ch===quote&&prev!=='\\') quote=null; continue; }
+      if(ch==='"'||ch==="'"){ quote=ch; continue; }
+      if(ch==='(') depth++;
+      else if(ch===')'){
+        depth--;
+        if(depth===0) return i;
+      }
+    }
+    return -1;
+  }
+
+  function findCloseBracket(s, open){
+    let depth=0;
+    for(let i=open;i<s.length;i++){
+      const ch=s[i];
+      if(ch==='[') depth++;
+      else if(ch===']'){
+        depth--;
+        if(depth===0) return i;
+      }
+    }
+    return -1;
+  }
+
+  function nums(str){
+    return (String(str).match(/[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/g)||[]).map(Number);
+  }
+
+  function firstBracketNums(args){
+    const bi=args.indexOf('[');
+    if(bi<0) return null;
+    const ei=findCloseBracket(args,bi);
+    if(ei<0) return null;
+    const n=nums(args.slice(bi+1,ei));
+    return n.length>=6 ? n.slice(0,6) : null;
+  }
+
+  function poseNums(args){
+    const m=args.match(/p\s*\[/i);
+    if(!m) return null;
+    const bi=args.indexOf('[',m.index);
+    const ei=findCloseBracket(args,bi);
+    if(ei<0) return null;
+    const n=nums(args.slice(bi+1,ei));
+    return n.length>=6 ? n.slice(0,6) : null;
+  }
+
+  function timeArg(args){
+    const m=String(args).match(/(?:^|[,\s])t\s*=\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/i);
+    if(!m) return null;
+    const v=Number(m[1]);
+    return Number.isFinite(v)&&v>0 ? v : null;
+  }
+
+  function nameFor(type){
+    return type==='wait' ? `Wait ${out.length+1}` : type==='moveL' ? `MoveL ${out.length+1}` : `Waypoint ${out.length+1}`;
+  }
+
+  const cmdRe=/\b(movej|movel|sleep|set_digital_out|set_configurable_digital_out)\s*\(/ig;
+  let m;
+  while((m=cmdRe.exec(src))){
+    const cmd=m[1].toLowerCase();
+    const open=src.indexOf('(',m.index);
+    const close=findCloseParen(src,open);
+    if(open<0||close<0){ cmdRe.lastIndex=m.index+m[0].length; continue; }
+    const args=src.slice(open+1,close);
+    cmdRe.lastIndex=close+1;
+
+    if(cmd==='sleep'){
+      const n=nums(args);
+      if(n.length&&n[0]>0) out.push({ type:'wait', duration:n[0], name:nameFor('wait') });
+      continue;
+    }
+
+    if(cmd==='set_digital_out'||cmd==='set_configurable_digital_out'){
+      const n=nums(args);
+      if(n.length){
+        const val=/true/i.test(args) || (n.length>1 && !!n[1]);
+        out.push({ type:'io', name:`I/O: DO ${n[0]} = ${val?'HIGH':'LOW'}`, io:{signal:`DO ${n[0]}`,value:val} });
+      }
+      continue;
+    }
+
+    if(cmd==='movej'){
+      let q=null;
+      const pose=poseNums(args);
+      if(pose) q=ikPos([pose[0],pose[1],pose[2]], robotQ).q;
+      else {
+        const b=firstBracketNums(args);
+        if(b) q=b;
+      }
+      if(isValidQ(q)) out.push({ type:'moveJ', q:cleanQ(q), time:timeArg(args), name:nameFor('moveJ') });
+      continue;
+    }
+
+    if(cmd==='movel'){
+      let q=null;
+      const pose=poseNums(args);
+      if(pose) q=ikPos([pose[0],pose[1],pose[2]], robotQ).q;
+      else {
+        const b=firstBracketNums(args);
+        if(b) q=b; // URScript allows movel([q...]) via FK
+      }
+      if(isValidQ(q)) out.push({ type:'moveL', q:cleanQ(q), time:timeArg(args), name:nameFor('moveL') });
+      continue;
+    }
+  }
+  return out;
+}
+
+function parseAngles(text){
+  // ── ARTAB v2.0  (Arduino Robot Teaching Angle Block) ─────────────────────
+  // Supported record types (first token of each data line):
+  //
+  //   MOVE  name, j1°, j2°, j3°, j4°, j5°, j6°[, time_s]
+  //         Joint-space move.  Angles in DEGREES.
+  //
+  //   MOVEL name, j1°, j2°, j3°, j4°, j5°, j6°[, time_s]
+  //         Linear (TCP-space) move. Angles are the approach joints in DEG.
+  //
+  //   WAIT  name, duration_s
+  //         Pause for duration_s seconds before the next motion.
+  //
+  // Lines starting with # are comments / header — ignored by the parser.
+  // Whitespace around commas is ignored.
+  //
+  // Arduino sketch output example (via Serial.println / SD.println):
+  //   # ARTAB v2.0
+  //   # Robot: UR20
+  //   MOVE,Home,0.000,-90.000,0.000,-90.000,-90.000,0.000
+  //   WAIT,Pause1,1.500
+  //   MOVE,WP1,15.500,-75.200,10.100,-85.000,-88.500,5.000,2.500
+  //   MOVEL,Pick,30.000,-60.000,20.000,-80.000,-87.000,10.000,1.200
+  // ─────────────────────────────────────────────────────────────────────────
+  const results=[];
+  for(const raw of text.split('\n')){
+    const line=raw.trim();
+    if(!line||line.startsWith('#')) continue;
+    const cols=line.split(',').map(s=>s.trim());
+    if(cols.length<2) continue;
+    const recType=cols[0].toUpperCase();
+
+    if(recType==='MOVE'||recType==='MOVEL'){
+      if(cols.length<8) continue; // need name + 6 angles
+      const name=(cols[1]||`WP${results.length+1}`).replace(/_/g,' ');
+      const degs=cols.slice(2,8).map(Number);
+      if(degs.some(isNaN)) continue;
+      const q=degs.map(d=>d*Math.PI/180);
+      let time=null;
+      if(cols[8]!==undefined&&cols[8]!==''){
+        const t=parseFloat(cols[8]); if(!isNaN(t)&&t>0) time=t;
+      }
+      results.push({ type:recType==='MOVEL'?'moveL':'moveJ', q, time, name });
+
+    } else if(recType==='WAIT'){
+      const name=(cols[1]||`Wait ${results.length+1}`).replace(/_/g,' ');
+      const dur=parseFloat(cols[2]);
+      if(isNaN(dur)||dur<=0) continue;
+      results.push({ type:'wait', duration:dur, name });
+
+    } else {
+      // Legacy v1 format: no record-type prefix → treat as MOVE (backward compat)
+      // Format: name, j1°, j2°, j3°, j4°, j5°, j6°[, time_s]
+      if(cols.length<7) continue;
+      const name=(cols[0]||`WP${results.length+1}`).replace(/_/g,' ');
+      const degs=cols.slice(1,7).map(Number);
+      if(degs.some(isNaN)) continue;
+      const q=degs.map(d=>d*Math.PI/180);
+      let time=null;
+      if(cols[7]!==undefined&&cols[7]!==''){
+        const t=parseFloat(cols[7]); if(!isNaN(t)&&t>0) time=t;
+      }
+      results.push({ type:'moveJ', q, time, name });
+    }
+  }
+  return results;
+}
+
+function handleFileLoad(filename, text){
+  const ext=filename.split('.').pop().toLowerCase();
+  let wps=[];
+  if(ext==='urpx')        wps=parseURPX(text);
+  else if(ext==='script') wps=parseScript(text);
+  else if(ext==='angles') wps=parseAngles(text);
+  else if(ext==='csv')    wps=parseCSV(text);
+  else { showToast('Unsupported file. Use .urpx, .script, .angles, or .csv','error'); return; }
+  importWaypoints(wps);
+}
+
+window.handleFileSelect=function(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>handleFileLoad(file.name, e.target.result);
+  reader.readAsText(file);
+  event.target.value=''; // reset so same file can be re-uploaded
+};
+
+window.handleFileDrop=function(event){
+  event.preventDefault();
+  document.getElementById('upload-drop').classList.remove('drag-active');
+  const file=event.dataTransfer.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>handleFileLoad(file.name, e.target.result);
+  reader.readAsText(file);
+};
+
+/* ══════════════════════════════════════════════════════════════
+   EXPORT
+══════════════════════════════════════════════════════════════ */
+// Shared rotation matrix → axis-angle vector (used by both script and URPX export)
+function rotToRVscript(M){
+  const tr=M[0][0]+M[1][1]+M[2][2];
+  const ang=Math.acos(Math.max(-1,Math.min(1,(tr-1)/2)));
+  if(ang<1e-10) return [0,0,0];
+  const s=1/(2*Math.sin(ang));
+  return [(M[2][1]-M[1][2])*s*ang,(M[0][2]-M[2][0])*s*ang,(M[1][0]-M[0][1])*s*ang];
+}
+
+function buildScript(){
+  const lines=[
+    '# ═══════════════════════════════════════════════════════════════',
+    '# UR20 Teach Pendant Simulator  —  Generated URScript',
+    '# Robot: Universal Robots UR20  |  PolyScope X compatible',
+    '# Load in URSim:  Programs → Load Program → select this file',
+    '# ═══════════════════════════════════════════════════════════════',
+    '','def ur20_teach_pendant_program():',
+    '  textmsg("UR20 Teach Pendant — start")',
+    '  set_tcp(p[0, 0, 0, 0, 0, 0])',
+    '',
+  ];
+  waypoints.forEach((wp,i)=>{
+    const wtype=wp.type||'moveJ';
+    lines.push(`  # ── ${i+1}: ${wp.name}`);
+
+    if(wtype==='wait'){
+      lines.push(`  sleep(${(wp.duration||1).toFixed(3)})`);
+
+    } else if(wtype==='io'){
+      const io=wp.io||{}; const pin=io.signal||'0'; const val=io.value?'True':'False';
+      // Determine if it's a digital or tool output from the signal ID
+      if(String(pin).startsWith('DI')||String(pin).startsWith('DO'))
+        lines.push(`  set_digital_out(${pin.replace(/\D/g,'')}, ${val})`);
+      else
+        lines.push(`  set_configurable_digital_out(${pin.replace(/\D/g,'')}, ${val})`);
+
+    } else {
+      const qs='['+wp.q.map(v=>v.toFixed(6)).join(', ')+']';
+      const vJoint=Math.min(1.57, tcpSpeed/1000).toFixed(4);
+      if(wtype==='moveL'){
+        const T=fkEE(wp.q); const [x,y,z]=[T[0][3],T[1][3],T[2][3]];
+        const [rx,ry,rz]=rotToRVscript(T);
+        const pose=`p[${x.toFixed(6)}, ${y.toFixed(6)}, ${z.toFixed(6)}, ${rx.toFixed(6)}, ${ry.toFixed(6)}, ${rz.toFixed(6)}]`;
+        if(wp.time!==null)
+          lines.push(`  movel(${pose}, a=1.2, v=${vJoint}, t=${wp.time.toFixed(3)}, r=0)`);
+        else
+          lines.push(`  movel(${pose}, a=1.2, v=${vJoint}, r=0)`);
+      } else {
+        if(wp.time!==null)
+          lines.push(`  movej(${qs}, a=1.4, v=${vJoint}, t=${wp.time.toFixed(3)}, r=0)`);
+        else
+          lines.push(`  movej(${qs}, a=1.4, v=${vJoint}, r=0)`);
+      }
+    }
+    lines.push('');
+  });
+  lines.push('  textmsg("UR20 Teach Pendant — complete")',
+             'end','','ur20_teach_pendant_program()');
+  return lines.join('\n');
+}
+
+window.exportScript=()=>{
+  if(!waypoints.length){ showToast('Record waypoints first!','warn'); return; }
+  const name=(document.getElementById('proj-name-inp')?.value||'UR20_Program').trim()||'UR20_Program';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([buildScript()],{type:'text/plain'}));
+  a.download=name+'.script'; a.click();
+  showToast('URScript downloaded','success');
+};
+
+window.exportURPX=()=>{
+  if(!waypoints.length){ showToast('Record waypoints first!','warn'); return; }
+
+  /* ── Helpers ─────────────────────────────────────────────── */
+  function uuid(){
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+      const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8); return v.toString(16);
+    });
+  }
+  // 3×3 rotation matrix (rows 0-2, cols 0-2 of DH FK result) → axis-angle vector
+  function rotToRV(M){
+    const tr=M[0][0]+M[1][1]+M[2][2];
+    const ang=Math.acos(Math.max(-1,Math.min(1,(tr-1)/2)));
+    if(ang<1e-10) return [0,0,0];
+    const s=1/(2*Math.sin(ang));
+    return [(M[2][1]-M[1][2])*s*ang,(M[0][2]-M[2][0])*s*ang,(M[1][0]-M[0][1])*s*ang];
+  }
+  function v(val,unit){ return {entity:{value:val,unit},selectedType:'VALUE',value:val}; }
+
+  // ── Timed motion support for native PolyScope X Move To nodes ─────────────
+  // PolyScope X Move To nodes do not expose a native "time seconds" parameter in
+  // the visual-node schema. Their Movement settings are Motion Value + Speed +
+  // Acceleration. For any waypoint with a simulator duration, we therefore keep
+  // the exact duration in the URScript mirror using movej/movel(..., t=<time>)
+  // and also convert that duration into a valid Classic speed/acceleration block
+  // for the native visual Move To node. This prevents the node from falling back
+  // to default S/A values if PolyScope regenerates the program from the tree.
+  const MOTION_LIMITS={
+    minJointSpeed:0.001, maxJointSpeedFallback:1.05, maxJointAccel:1.3962634015954636,
+    minLinearSpeed:0.001, maxLinearSpeed:1.5, maxLinearAccel:1.2
+  };
+
+  function clampNum(x,lo,hi){ return Math.max(lo,Math.min(hi,x)); }
+
+  function prevMotionQ(idx){
+    for(let j=idx-1;j>=0;j--){ if(waypoints[j]&&isValidQ(waypoints[j].q)) return waypoints[j].q; }
+    return isValidQ(robotQ) ? robotQ : POSE_HOME;
+  }
+
+  function jointLeadingDistance(q0,q1){
+    let d=0;
+    for(let j=0;j<6;j++) d=Math.max(d,Math.abs(q1[j]-q0[j]));
+    return d;
+  }
+
+  function synchronizedJointSpeedLimit(q0,q1,leadDist){
+    if(!(leadDist>1e-9)) return MOTION_LIMITS.maxJointSpeedFallback;
+    let lim=Infinity;
+    for(let j=0;j<6;j++){
+      const dj=Math.abs(q1[j]-q0[j]);
+      if(dj>1e-9) lim=Math.min(lim,UR20_MAX_SPDS[j]*leadDist/dj);
+    }
+    if(!Number.isFinite(lim)) lim=MOTION_LIMITS.maxJointSpeedFallback;
+    return Math.max(MOTION_LIMITS.minJointSpeed,lim);
+  }
+
+  function cartesianDistanceFromQ(q0,q1){
+    const p0=getPos(fkEE(q0));
+    const p1=getPos(fkEE(q1));
+    return norm3([p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]]);
+  }
+
+  function timedClassicSpeedBlock(wp,idx,wtype){
+    const T=Math.max(0.1,Number(wp.time)||0);
+    const q0=prevMotionQ(idx), q1=wp.q;
+
+    // Use a triangular-profile estimate: v_peak = 2D/T and a = 4D/T².
+    // If the request exceeds conservative limits, clamp it; URSim/robot will then
+    // execute at the nearest feasible speed instead of rejecting the node.
+    if(wtype==='moveL'){
+      const D=cartesianDistanceFromQ(q0,q1);
+      if(!(D>1e-9)){
+        return {motionValue:'Classic',speedType:'Classic',speed:v(MOTION_LIMITS.minLinearSpeed,'m/s'),acceleration:v(0.05,'m/s^2'),optiMoveSpeed:v(1,'%'),optiMoveAcceleration:v(1,'%')};
+      }
+      const sp=clampNum(2*D/T,MOTION_LIMITS.minLinearSpeed,MOTION_LIMITS.maxLinearSpeed);
+      const acc=clampNum(4*D/(T*T),0.01,MOTION_LIMITS.maxLinearAccel);
+      const spPct=clampNum(Math.round((sp/MOTION_LIMITS.maxLinearSpeed)*100),1,100);
+      const accPct=clampNum(Math.round((acc/MOTION_LIMITS.maxLinearAccel)*100),1,100);
+      return {motionValue:'Classic',speedType:'Classic',speed:v(+sp.toFixed(6),'m/s'),acceleration:v(+acc.toFixed(6),'m/s^2'),optiMoveSpeed:v(spPct,'%'),optiMoveAcceleration:v(accPct,'%')};
+    }
+
+    const D=jointLeadingDistance(q0,q1);
+    if(!(D>1e-9)){
+      return {motionValue:'Classic',speedType:'Classic',speed:v(MOTION_LIMITS.minJointSpeed,'rad/s'),acceleration:v(0.05,'rad/s^2'),optiMoveSpeed:v(1,'%'),optiMoveAcceleration:v(1,'%')};
+    }
+    const maxLeadSpeed=synchronizedJointSpeedLimit(q0,q1,D);
+    const sp=clampNum(2*D/T,MOTION_LIMITS.minJointSpeed,maxLeadSpeed);
+    const acc=clampNum(4*D/(T*T),0.01,MOTION_LIMITS.maxJointAccel);
+    const refSpeed=Math.max(MOTION_LIMITS.minJointSpeed,maxLeadSpeed);
+    const spPct=clampNum(Math.round((sp/refSpeed)*100),1,100);
+    const accPct=clampNum(Math.round((acc/MOTION_LIMITS.maxJointAccel)*100),1,100);
+    return {motionValue:'Classic',speedType:'Classic',speed:v(+sp.toFixed(6),'rad/s'),acceleration:v(+acc.toFixed(6),'rad/s^2'),optiMoveSpeed:v(spPct,'%'),optiMoveAcceleration:v(accPct,'%')};
+  }
+
+  /* ── Fixed structural GUIDs ───────────────────────────────── */
+  const ROOT_G=uuid(), MOD_G=uuid(), FUNC_G=uuid();
+  const BSTART_G=uuid(), CFG_G=uuid(), STATUS_G=uuid(), CODE_G=uuid();
+
+  /* ── Build one node per waypoint (move-to, wait, or set-io) ─── */
+  const nativeWpNodes=waypoints.map((wp,i)=>{
+    const safeName=(wp.name||`Waypoint_${i+1}`).replace(/[^A-Za-z0-9_]/g,'_').replace(/^(\d)/,'WP$1');
+    const g=uuid();
+    const wtype=wp.type||'moveJ';
+
+    // ── WAIT node ─────────────────────────────────────────────────────────────
+    // Native PolyScope X timed Wait node.
+    // This mirrors a real URSim-exported Wait node exactly:
+    // contributedNode.type       = 'ur-wait'
+    // contributedNode.version    = '0.0.3'
+    // parameters.type            = 'time'
+    // parameters.time.entity     = { value:<seconds>, unit:'s' }
+    // parameters.time.selectedType = 'VALUE'
+    // parameters.time.value      = <seconds>
+    // programLabel               = [{ type:'secondary', value:'x.xx s' }]
+    // Do not add legacy aliases like nodeType/waitType/timeSeconds here. PolyScope X
+    // accepts the node type, but those wrong parameter shapes make the Wait empty/yellow.
+    if(wtype==='wait'){
+      const dur=Math.max(0.1, Number(wp.duration)||1);
+      const durVal=+dur.toFixed(3);
+      return {
+        children:[],
+        contributedNode:{
+          type:'ur-wait',
+          version:'0.0.3',
+          parameters:{
+            type:'time',
+            time:{
+              entity:{ value:durVal, unit:'s' },
+              selectedType:'VALUE',
+              value:durVal
+            }
+          }
+        },
+        guid:g,
+        parentId:CODE_G,
+        programLabel:[{ type:'secondary', value:`${dur.toFixed(2)} s` }]
+      };
+    }
+
+    // ── SET I/O node ────────────────────────────────────────────
+    if(wtype==='io'){
+      const io=wp.io||{}; const sigID=io.signal||'DO 0'; const val=!!io.value;
+      return {
+        children:[],
+        contributedNode:{
+          version:'0.0.1', type:'ur-set-io', allowsChildren:false,
+          parameters:{
+            signal:{signalID:sigID, direction:'OUT', valueType:'BOOLEAN'},
+            value:v(val?1:0,'')
+          }
+        },
+        guid:g, parentId:CODE_G,
+        programLabel:`Set I/O: ${sigID} = ${val?'HIGH':'LOW'}`
+      };
+    }
+
+    // ── MOVE node (moveJ or moveL) ──────────────────────────────
+    const T=fkEE(wp.q);
+    const [x,y,z]=[T[0][3],T[1][3],T[2][3]];
+    const [rx,ry,rz]=rotToRV(T);
+    const [jb,js,je,jw1,jw2,jw3]=wp.q;
+    const omPct=Math.round(10+(tcpSpeed-250)/(1500-250)*50);
+    const vRad=Math.min(1.57,tcpSpeed/1000);
+    const dur=(wp.time!==null && Number.isFinite(Number(wp.time)) && Number(wp.time)>0)
+      ? +Number(wp.time).toFixed(3)
+      : null;
+    const timeParam=dur!==null ? v(dur,'s') : null;
+
+    // PolyScope X visual nodes only accept 'Classic' or 'OptiMove' as motionValue.
+    // 'Time' is a URScript-only concept (t= param). For timed waypoints we derive a
+    // Classic speed/accel block from the requested duration so the visual node stays
+    // green, while the URScript mirror uses t=N for exact timing.
+    const speedBlock=dur!==null
+      ? timedClassicSpeedBlock(wp, i, wtype)
+      : {
+          motionValue:'Classic', speedType:'Classic',
+          speed:v(vRad,'rad/s'), acceleration:v(1.3962634015954636,'rad/s^2'),
+          optiMoveSpeed:v(omPct,'%'), optiMoveAcceleration:v(9,'%')
+        };
+    return {
+      children:[],
+      contributedNode:{
+        version:'0.0.5', type:'ur-move-to', allowsChildren:false,
+        parameters:{
+          moveType:wtype==='moveL'?'moveL':'moveJ',
+          variable:{entity:{name:safeName,reference:false,type:'$$Variable',valueType:'waypoint',declaredByID:g},selectedType:'VALUE',value:safeName},
+          waypoint:{
+            frame:'base',
+            qNear:{base:jb,shoulder:js,elbow:je,wrist1:jw1,wrist2:jw2,wrist3:jw3},
+            pose:{ x:v(x,'m'),y:v(y,'m'),z:v(z,'m'), rx:v(rx,'rad'),ry:v(ry,'rad'),rz:v(rz,'rad') }
+          },
+          advanced:{ speed:speedBlock, blend:{enabled:false}, transform:{transform:false} }
+        }
+      },
+      guid:g, parentId:CODE_G,
+      programLabel:`${wtype==='moveL'?'MoveL':'MoveJ'}: ${safeName}${dur!==null?` (${dur.toFixed(2)} s)`:''}`
+    };
+  });
+
+  // Attach one real visual program node per simulator item.
+  // MoveJ/MoveL nodes always use the native ur-move-to schema.
+  // If a waypoint duration exists, the node receives a native time parameter;
+  // otherwise no time parameter is emitted. Waits use the native URSim-exported ur-wait schema.
+  const wpNodes=nativeWpNodes;
+
+  /* ── URScript for program section ────────────────────────── */
+  const nodeIDList=[
+    '00000000-0000-0000-0000-000000000000',
+    ROOT_G, MOD_G, FUNC_G, BSTART_G, CODE_G,
+    ...wpNodes.map(n=>n.guid)
+  ];
+
+  // Plain command URScript mirror for the program section.
+  // Standard URScript: movej([q1..q6], a, v, t, r), movel(p[x,y,z,rx,ry,rz], a, v, t, r),
+  // and sleep(seconds) for timed waits.
+  const programName=((document.getElementById('proj-name-inp')?.value||'UR20_Program').trim().replace(/[^A-Za-z0-9_\-]/g,'_')||'UR20_Program');
+  const markerLines=[];
+
+  function qForWaitAt(idx){
+    for(let j=idx-1;j>=0;j--){ if(waypoints[j]&&waypoints[j].q) return waypoints[j].q; }
+    for(let j=idx+1;j<waypoints.length;j++){ if(waypoints[j]&&waypoints[j].q) return waypoints[j].q; }
+    return robotQ;
+  }
+
+  markerLines.push('# Generated by UR20 Teach Pendant Simulator');
+  markerLines.push('# Wait nodes are native ur-wait v0.0.3 time nodes. Timed motions are native ur-move-to nodes with a time parameter.');
+  markerLines.push('textmsg("UR20 Teach Pendant — start")');
+  markerLines.push('set_tcp(p[0, 0, 0, 0, 0, 0])');
+  waypoints.forEach((wp,i)=>{
+    const wtype=wp.type||'moveJ';
+    markerLines.push(`# ${i+1}: ${String(wp.name||wtype).replace(/\n/g,' ')}`);
+    if(wtype==='wait'){
+      const dur=Math.max(0.1, Number(wp.duration)||1);
+      markerLines.push(`sleep(${dur.toFixed(3)})`);
+    } else if(wtype==='io'){
+      const io=wp.io||{}; const pin=(io.signal||'DO 0').replace(/\D/g,'');
+      markerLines.push(`set_digital_out(${pin}, ${io.value?'True':'False'})`);
+    } else if(wtype==='moveL'){
+      // MoveL: use FK pose (metres, axis-angle)
+      const T=fkEE(wp.q); const[x,y,z]=[T[0][3],T[1][3],T[2][3]];
+      const[rx,ry,rz]=rotToRV(T);
+      const a=1.2, v=Math.min(1.0, tcpSpeed/1000);
+      const pose=`p[${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)},${rx.toFixed(6)},${ry.toFixed(6)},${rz.toFixed(6)}]`;
+      markerLines.push(wp.time!==null
+        ? `movel(${pose}, a=${a}, v=${v.toFixed(4)}, t=${wp.time.toFixed(3)}, r=0)`
+        : `movel(${pose}, a=${a}, v=${v.toFixed(4)}, r=0)`);
+    } else {
+      // MoveJ: pass joint angles directly — no struct, no get_inverse_kin needed
+      const q=`[${wp.q.map(v=>v.toFixed(6)).join(',')}]`;
+      const a=1.4, v=Math.min(1.05, tcpSpeed/1000);
+      markerLines.push(wp.time!==null
+        ? `movej(${q}, a=${a}, v=${v.toFixed(4)}, t=${wp.time.toFixed(3)}, r=0)`
+        : `movej(${q}, a=${a}, v=${v.toFixed(4)}, r=0)`);
+    }
+  });
+  markerLines.push('textmsg("UR20 Teach Pendant — complete")');
+
+  const progScript=markerLines.join('\n');
+
+  /* ── Application init URScript ────────────────────────────── */
+  const appScript=`set_safety_mode_transition_hardness(1)
+reset_world_model()
+set_input_actions_to_default()
+set_analog_outputdomain(0,0)
+set_analog_outputdomain(1,0)
+set_standard_analog_input_domain(0,0)
+set_standard_analog_input_domain(1,0)
+set_tool_output_mode(0)
+set_tool_voltage(0)
+set_tool_digital_output_mode(0,1)
+set_tool_digital_output_mode(1,1)
+set_tool_analog_input_domain(0,0)
+set_tool_analog_input_domain(1,0)
+set_target_payload(0, [0, 0, 0], [0, 0, 0, 0, 0, 0])
+set_tcp(p[0, 0, 0, 0, 0, 0], "Tool_flange")
+global base = "base"
+global tcp = "tcp"
+global world = "world"
+global flange = "flange"
+move_frame("base", p[0,0,0,0,0,0], "world")
+set_gravity([0, 0, 9.82])
+local existingBaseParent = get_frame_parent("base")
+local basePose = get_pose("base", existingBaseParent)
+basePose[3] = 0
+basePose[4] = 0
+basePose[5] = 0
+move_frame("base", basePose, existingBaseParent)`;
+
+  const now=Date.now();
+
+  /* ── Safety settings block (REQUIRED by isProgramAllowedToLoad) ─
+     Exact structure from PolyScope X — crc validates these settings.
+     Using default UR20 safety configuration (matches URSim defaults). */
+  const jpDefault={maximum:6.33555,maximumJointPosition:0.05235988,maximumRevolutionCounter:1,minimum:-6.33555,minimumJointPosition:6.2308254,minimumRevolutionCounter:-2,unlimited:false};
+  const allJoints=(v)=>({base:v,shoulder:v,elbow:v,wrist1:v,wrist2:v,wrist3:v});
+  const jpAllDefault=allJoints(jpDefault);
+  const SAFETY_BLOCK={settings:{
+    io:{
+      automaticModeSafeguardResetInput:{name:'automaticModeSafeguardResetInput',valueA:255,valueB:255},
+      automaticModeSafeguardStopInput:{name:'automaticModeSafeguardStopInput',valueA:255,valueB:255},
+      emergencyStopInput:{name:'emergencyStopInput',valueA:255,valueB:255},
+      notReducedModeOutput:{name:'notReducedModeOutput',ossdEnabled:false,valueA:255,valueB:255},
+      operationalModeInput:{name:'operationalModeInput',valueA:255,valueB:255},
+      reducedModeInput:{name:'reducedModeInput',valueA:255,valueB:255},
+      reducedModeOutput:{name:'reducedModeOutput',ossdEnabled:false,valueA:255,valueB:255},
+      robotMovingOutput:{name:'robotMovingOutput',ossdEnabled:false,valueA:255,valueB:255},
+      robotNotStoppingOutput:{name:'robotNotStoppingOutput',ossdEnabled:false,valueA:255,valueB:255},
+      safeHomeOutput:{name:'safeHomeOutput',ossdEnabled:false,valueA:255,valueB:255},
+      safeguardResetInput:{name:'safeguardResetInput',valueA:0,valueB:1},
+      systemEmergencyStoppedOutput:{name:'systemEmergencyStoppedOutput',ossdEnabled:false,valueA:255,valueB:255},
+      threePositionSwitchInput:{name:'threePositionSwitchInput',valueA:255,valueB:255},
+      freedriveEnabledInput:{name:'freedriveEnabledInput',valueA:255,valueB:255}
+    },
+    major:5, minor:10,
+    normalJointPositions:jpAllDefault,
+    normalJointSpeeds:{base:2.2944,elbow:2.81799,shoulder:2.2944,wrist1:3.86519,wrist2:3.86519,wrist3:3.86519},
+    normalRobotLimits:{elbowForce:150,elbowSpeed:1.5,momentum:25,power:300,stoppingDistance:0.5,stoppingTime:0.4,toolForce:150,toolSpeed:1.5},
+    reducedJointPositions:jpAllDefault,
+    reducedJointSpeeds:{base:2.2944,elbow:2.81799,shoulder:2.2944,wrist1:3.86519,wrist2:3.86519,wrist3:3.86519},
+    reducedRobotLimits:{elbowForce:120,elbowSpeed:0.75,momentum:10,power:200,stoppingDistance:0.3,stoppingTime:0.3,toolForce:120,toolSpeed:0.75},
+    safetyHardware:{injectionMoldingMachineInterface:'NONE',teachPendant:'THREEPE'},
+    safetyPlanes:{planes:Array(8).fill(null).map(()=>({name:'UNDEFINED',safetyPlane:{normalModePlane:{distance:0,vector:{x:0,y:0,z:0}},reducedModePlane:{distance:0,vector:{x:0,y:0,z:0}},reducedModeTriggerPlane:{distance:0,vector:{x:0,y:0,z:0}},restrictsElbow:false,restrictsToolFlange:true},tilt:0,offset:0,rotation:0,restriction:'disabled'}))},
+    safetySafeHome:{base:-1,elbow:-1,shoulder:-1,wrist1:-1,wrist2:-1,wrist3:-1,enabled:false},
+    safetyAPIParameters:{numberOfClients:0,clients:[]},
+    safetyFieldbusses:{enablePROFIsafe:false,sourceAddressPROFIsafe:0,destAddressPROFIsafe:0,modeControlPROFIsafe:false},
+    threePosition:{allowManualHighSpeed:true,useTeachPendantAs3PE:true},
+    toolDirection:{limitDeviation:6.2831855,limitDirection:{x:0,y:0,z:1},limitRestriction:'DISABLED',toolPan:0,toolTilt:0},
+    toolPositions:{toolPositions:[{center:{x:0,y:0,z:0},radius:0,definition:2},{center:{x:0,y:0,z:0},radius:0,definition:0},{center:{x:0,y:0,z:0},radius:0,definition:0}]},
+    crc:'4230457862'
+  }};
+
+  /* ── Sources nodes (robot I/O signals) ───────────────────── */
+  const wiredSignals=[];
+  ['DI','DO'].forEach(d=>{for(let i=0;i<8;i++) wiredSignals.push({signalID:`${d} ${i}`,direction:d==='DI'?'IN':'OUT',valueType:'BOOLEAN'});});
+  ['CI','CO'].forEach(d=>{for(let i=0;i<8;i++) wiredSignals.push({signalID:`${d} ${i}`,direction:d==='CI'?'IN':'OUT',valueType:'BOOLEAN'});});
+  wiredSignals.push({signalID:'AI 0',direction:'IN',valueType:'FLOAT'},{signalID:'AI 1',direction:'IN',valueType:'FLOAT'});
+  wiredSignals.push({signalID:'AO 0',direction:'OUT',valueType:'FLOAT'},{signalID:'AO 1',direction:'OUT',valueType:'FLOAT'});
+  const SOURCES_NODES={
+    robot:{groupId:'robot',version:'1.0.0.',isDynamic:false,sources:[
+      {sourceID:'ur-wired-io',signals:wiredSignals,webSocketURL:'/sources/wired-io'},
+      {sourceID:'ur-tool-io',signals:[{signalID:'DI 0',direction:'IN',valueType:'BOOLEAN'},{signalID:'DI 1',direction:'IN',valueType:'BOOLEAN'},{signalID:'DO 0',direction:'OUT',valueType:'BOOLEAN'},{signalID:'DO 1',direction:'OUT',valueType:'BOOLEAN'},{signalID:'AI 0',direction:'IN',valueType:'FLOAT'},{signalID:'AI 1',direction:'IN',valueType:'FLOAT'}],webSocketURL:'/sources/tool-io'}
+    ]}
+  };
+
+  /* ── Full URPX JSON structure (PolyScope X format) ───────── */
+  const urpx={
+    application:{
+      id:'2',
+      applicationInfo:{name:'main_application'},
+      applicationContent:{
+        applicationContributions:{
+          'ur-mounting':{type:'ur-mounting',version:'0.0.1',mounting:{baseAngle:{value:0,unit:'deg'},tiltAngle:{value:0,unit:'deg'}}},
+          'ur-frames':{
+            type:'ur-frames',version:'0.0.7',
+            framesList:[
+              {name:'base',nameVariable:{name:'base',reference:false,type:'$$Variable',valueType:'frame'},parent:'world',pose:{position:[0,0,0],orientation:[0,0,0]}},
+              {name:'tcp', nameVariable:{name:'tcp', reference:false,type:'$$Variable',valueType:'frame'},parent:'flange',pose:{position:[0,0,0],orientation:[0,0,0]}},
+              {name:'world',nameVariable:{name:'world',reference:false,type:'$$Variable',valueType:'frame'},pose:{position:[0,0,0],orientation:[0,0,0]}},
+              {name:'flange',nameVariable:{name:'flange',reference:false,type:'$$Variable',valueType:'frame'},parent:'base',pose:{position:[0,0,0],orientation:[0,0,0]}}
+            ]
+          },
+          'ur-end-effector':{
+            type:'ur-end-effector',version:'0.0.2',
+            endEffectors:[{
+              id:'cb3273ec-51af-c11c-a5cd-679d1dec1626',name:'Robot',
+              payload:{weight:{value:0,unit:'kg'}},
+              cog:{cx:{value:0,unit:'m'},cy:{value:0,unit:'m'},cz:{value:0,unit:'m'}},
+              inertia:{Ixx:{value:0,unit:'kg*m^2'},Iyy:{value:0,unit:'kg*m^2'},Izz:{value:0,unit:'kg*m^2'},Ixy:{value:0,unit:'kg*m^2'},Ixz:{value:0,unit:'kg*m^2'},Iyz:{value:0,unit:'kg*m^2'}},
+              useCustomInertia:false,
+              tcps:[{id:'a7fceb00-eea6-00a8-f8c5-833399163f1e',name:'Tool_flange',
+                x:{value:0,unit:'m'},y:{value:0,unit:'m'},z:{value:0,unit:'m'},
+                rx:{value:0,unit:'rad'},ry:{value:0,unit:'rad'},rz:{value:0,unit:'rad'}}]
+            }],
+            defaultTcp:{endEffectorId:'cb3273ec-51af-c11c-a5cd-679d1dec1626',tcpId:'a7fceb00-eea6-00a8-f8c5-833399163f1e'}
+          },
+          'ur-motion-profiles':{
+            type:'ur-motion-profiles',version:'0.0.1',
+            moveProfiles:{
+              joint:[
+                {isDefault:false,profile:{name:'Joint_fast',reference:false,type:'$$Variable',valueType:'profile'},parameters:{speedType:'OptiMove',speed:v(1.0471975511965976,'rad/s'),acceleration:v(1.3962634015954636,'rad/s^2'),optiMoveSpeed:v(50,'%'),optiMoveAcceleration:v(25,'%')}},
+                {isDefault:true, profile:{name:'Joint_slow',reference:false,type:'$$Variable',valueType:'profile'},parameters:{speedType:'OptiMove',speed:v(1.0471975511965976,'rad/s'),acceleration:v(1.3962634015954636,'rad/s^2'),optiMoveSpeed:v(20,'%'),optiMoveAcceleration:v(4,'%')}}
+              ],
+              linear:[
+                {isDefault:false,profile:{name:'Linear_fast',reference:false,type:'$$Variable',valueType:'profile'},parameters:{speedType:'OptiMove',speed:v(0.25,'m/s'),acceleration:v(1.2,'m/s^2'),optiMoveSpeed:v(50,'%'),optiMoveAcceleration:v(25,'%')}},
+                {isDefault:true, profile:{name:'Linear_slow',reference:false,type:'$$Variable',valueType:'profile'},parameters:{speedType:'OptiMove',speed:v(0.25,'m/s'),acceleration:v(1.2,'m/s^2'),optiMoveSpeed:v(20,'%'),optiMoveAcceleration:v(4,'%')}}
+              ],
+              process:[{isDefault:true,profile:{name:'Process',reference:false,type:'$$Variable',valueType:'profile'},parameters:{speedType:'Classic',speed:v(0.25,'m/s'),acceleration:v(1.2,'m/s^2')}}]
+            }
+          }
+        },
+        sourceConfig:{labelMap:{},analogDomainMap:{},presets:{}},
+        sourcesNodes:SOURCES_NODES,
+        safety:SAFETY_BLOCK,
+        operatorScreens:[{type:'ur-operator-screen-default',version:'0.0.2',parameters:{status:[],configuration:[]}}],
+        sidebarItems:[],
+        smartSkills:[]
+      },
+      urscript:{script:appScript}
+    },
+    program:{
+      id:'1',
+      programContent:{
+        children:[
+          {children:[],contributedNode:{type:'ur-modules',    version:'0.0.1',allowsChildren:true,lockChildren:false},guid:MOD_G,   parentId:ROOT_G,programLabel:'Modules'},
+          {children:[],contributedNode:{type:'ur-functions',  version:'0.0.1',allowsChildren:true,lockChildren:false},guid:FUNC_G,  parentId:ROOT_G,programLabel:''},
+          {children:[],contributedNode:{type:'ur-before-start',version:'0.0.1',allowsChildren:true},                  guid:BSTART_G,parentId:ROOT_G,programLabel:'Before Start'},
+          {children:[],contributedNode:{type:'ur-configuration',version:'0.0.1',allowsChildren:true,parameters:{}},   guid:CFG_G,   parentId:ROOT_G,programLabel:'Configuration'},
+          {children:[],contributedNode:{type:'ur-status',     version:'0.0.1',allowsChildren:true,parameters:{}},     guid:STATUS_G,parentId:ROOT_G,programLabel:'Status'},
+          {
+            children:wpNodes,
+            contributedNode:{type:'ur-code',version:'0.0.1',allowsChildren:true,lockChildren:false,parameters:{loopForever:false}},
+            guid:CODE_G,parentId:ROOT_G,
+            programLabel:'Code'
+          }
+        ],
+        contributedNode:{type:'ur-program',version:'0.0.1',allowsChildren:true,lockChildren:true,parameters:{name:programName}},
+        guid:ROOT_G
+      },
+      programInformation:{name:programName,description:'',programState:'FINAL',functionsBlockShown:false,createdDate:now,lastSavedDate:now,lastModifiedDate:now},
+      urscript:{script:progScript,nodeIDList}
+    }
+  };
+
+  const blob=new Blob([JSON.stringify(urpx,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=programName+'.urpx'; a.click();
+  showToast('URPX downloaded','success');
+};
+
+/* ══════════════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+══════════════════════════════════════════════════════════════ */
+function showToast(msg, type='info', duration=2800){
+  const c=document.getElementById('toast-container');
+  const t=document.createElement('div');
+  t.className='toast toast-'+type;
+  t.textContent=msg;
+  c.appendChild(t);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('show')));
+  setTimeout(()=>{
+    t.classList.remove('show');
+    setTimeout(()=>t.remove(), 320);
+  }, duration);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   UNDO / REDO  (waypoint state snapshots)
+══════════════════════════════════════════════════════════════ */
+const WP_HISTORY=[], MAX_HIST=60;
+let histIdx=-1;
+
+function pushHistory(){
+  // Trim any forward states
+  WP_HISTORY.splice(histIdx+1);
+  WP_HISTORY.push(JSON.stringify(waypoints));
+  if(WP_HISTORY.length>MAX_HIST) WP_HISTORY.shift();
+  histIdx=WP_HISTORY.length-1;
+  _updateUndoRedo();
+  scheduleAutoSave();
+}
+
+function _updateUndoRedo(){
+  const u=document.getElementById('undo-btn');
+  const r=document.getElementById('redo-btn');
+  if(u) u.disabled=(histIdx<=0);
+  if(r) r.disabled=(histIdx>=WP_HISTORY.length-1);
+}
+
+function undoWP(){
+  if(histIdx<=0) return;
+  histIdx--;
+  _restoreSnapshot(WP_HISTORY[histIdx]);
+  showToast('Undo','info',1400);
+}
+window.undoWP=undoWP;
+
+function redoWP(){
+  if(histIdx>=WP_HISTORY.length-1) return;
+  histIdx++;
+  _restoreSnapshot(WP_HISTORY[histIdx]);
+  showToast('Redo','info',1400);
+}
+window.redoWP=redoWP;
+
+function _restoreSnapshot(json){
+  try{
+    waypoints=JSON.parse(json);
+    selWP=-1;
+    renderWPList(); rebuildPath(); rebuildWPMarkers();
+    _syncWPCount();
+    _updateUndoRedo();
+    scheduleAutoSave();
+  }catch(e){}
+}
+
+function _syncWPCount(){
+  document.getElementById('wp-count').textContent=waypoints.length;
+  document.getElementById('sb-wps').textContent=waypoints.length;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PROJECT  SAVE / LOAD  (localStorage)
+══════════════════════════════════════════════════════════════ */
+const LS_KEY='ur20_project_v4';
+let _saveTimer=null;
+
+function scheduleAutoSave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(()=>{
+    _doSave(false);
+  }, 900);
+}
+
+function _doSave(notify=true){
+  try{
+    const name=(document.getElementById('proj-name-inp')?.value||'UR20_Program').trim()||'UR20_Program';
+    const payload={ name, waypoints, tcpSpeed, savedAt:Date.now() };
+    localStorage.setItem(LS_KEY, JSON.stringify(payload));
+    _flashSaveBadge();
+    if(notify) showToast('Project saved','success');
+  }catch(e){
+    if(notify) showToast('Save failed: '+e.message,'error');
+  }
+}
+
+function _flashSaveBadge(){
+  const b=document.getElementById('save-badge');
+  if(!b) return;
+  b.classList.add('show');
+  clearTimeout(b._t);
+  b._t=setTimeout(()=>b.classList.remove('show'),2200);
+}
+
+function saveProject(){ _doSave(true); }
+window.saveProject=saveProject;
+
+function loadProject(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(!raw){ showToast('No saved project found','warn'); return; }
+    const data=JSON.parse(raw);
+    if(data.name){
+      const inp=document.getElementById('proj-name-inp');
+      if(inp) inp.value=data.name;
+    }
+    if(data.tcpSpeed){ tcpSpeed=data.tcpSpeed; document.getElementById('tcp-speed-inp').value=tcpSpeed; }
+    if(Array.isArray(data.waypoints)&&data.waypoints.length){
+      // rebuild pos from q in case FK changed
+      const rebuilt=data.waypoints.map(w=>{
+        if(w.q){ const q=w.q.map(Number); return {...w,q,pos:getPos(fkEE(q))}; }
+        return w;
+      });
+      waypoints=rebuilt;
+      selWP=-1;
+      renderWPList(); rebuildPath(); rebuildWPMarkers();
+      _syncWPCount();
+      pushHistory();
+      showToast(`Loaded ${waypoints.length} waypoint(s)`,'success');
+    } else {
+      showToast('Saved project has no waypoints','warn');
+    }
+  }catch(e){ showToast('Load failed: '+e.message,'error'); }
+}
+window.loadProject=loadProject;
+
+function clearSavedProject(){
+  localStorage.removeItem(LS_KEY);
+  showToast('Saved project cleared','warn');
+}
+window.clearSavedProject=clearSavedProject;
+
+/* ══════════════════════════════════════════════════════════════
+   CSV  PARSER  (Arduino IK output)
+   Supported formats:
+     1) name, j1°, j2°, j3°, j4°, j5°, j6°[, time_s]
+     2) j1°, j2°, j3°, j4°, j5°, j6°[, time_s]   (bare numeric)
+   Lines starting with # or // are comments.
+   A row where cols 1-6 are non-numeric is treated as a header → skipped.
+══════════════════════════════════════════════════════════════ */
+function parseCSV(text){
+  const results=[];
+  for(const raw of text.split('\n')){
+    const line=raw.trim();
+    if(!line||line.startsWith('#')||line.startsWith('//')) continue;
+    const cols=line.split(',').map(s=>s.trim());
+    if(cols.length<6) continue;
+
+    // Try named format: name, j1, j2, j3, j4, j5, j6[, time]
+    if(cols.length>=7){
+      const degs=cols.slice(1,7).map(Number);
+      if(!degs.some(isNaN)){
+        const q=degs.map(d=>d*PI/180);
+        let time=null;
+        if(cols[7]!==undefined&&cols[7]!==''){
+          const t=parseFloat(cols[7]);
+          if(!isNaN(t)&&t>0) time=t;
+        }
+        results.push({type:'moveJ',q,time,name:cols[0]||`WP${results.length+1}`});
+        continue;
+      }
+    }
+
+    // Bare numeric: j1, j2, j3, j4, j5, j6[, time]
+    const degs=cols.slice(0,6).map(Number);
+    if(degs.some(isNaN)) continue;   // likely a header row
+    const q=degs.map(d=>d*PI/180);
+    let time=null;
+    if(cols[6]!==undefined&&cols[6]!==''){
+      const t=parseFloat(cols[6]);
+      if(!isNaN(t)&&t>0) time=t;
+    }
+    results.push({type:'moveJ',q,time,name:`WP${results.length+1}`});
+  }
+  return results;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESIZE
+══════════════════════════════════════════════════════════════ */
+new ResizeObserver(()=>{
+  const w=vpEl.clientWidth, h=vpEl.clientHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w,h);
+}).observe(vpEl);
+
+/* ══════════════════════════════════════════════════════════════
+   RENDER LOOP
+══════════════════════════════════════════════════════════════ */
+let t0=0;
+function render(t){
+  requestAnimationFrame(render);
+  controls.update();
+  const dt=(t-t0)/1000; t0=t;
+
+  // Pulse origin ring
+  oring.material.opacity = 0.4+0.35*Math.sin(t*0.002);
+
+  // Slowly rotate waypoint markers
+  wpMarkers.forEach((m,i)=>{ m.rotation.y+=0.012; m.rotation.x+=0.007*(i%2?1:-1); });
+
+  renderer.render(scene, camera);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════════ */
+// Init all gradient fills
+document.querySelectorAll('input[type=range]').forEach(updateSliderGradient);
+// Boot robot at home
+setPose(POSE_HOME);
+
+// Auto-restore last saved project from localStorage
+(function tryRestore(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(!raw) { pushHistory(); return; }
+    const data=JSON.parse(raw);
+    if(data.name){ const inp=document.getElementById('proj-name-inp'); if(inp) inp.value=data.name; }
+    if(data.tcpSpeed){ tcpSpeed=data.tcpSpeed; document.getElementById('tcp-speed-inp').value=tcpSpeed; }
+    if(Array.isArray(data.waypoints)&&data.waypoints.length){
+      waypoints=data.waypoints.map(w=>{
+        if(w.q){ const q=w.q.map(Number); return {...w,q,pos:getPos(fkEE(q))}; }
+        return w;
+      });
+      renderWPList(); rebuildPath(); rebuildWPMarkers();
+      _syncWPCount();
+      showToast(`Restored ${waypoints.length} waypoint(s)`,'info',2000);
+    }
+  }catch(e){}
+  pushHistory();   // seed undo stack with initial state
+})();
+
+// Start render
+requestAnimationFrame(render);
+
+</script>
+</body>
+</html>

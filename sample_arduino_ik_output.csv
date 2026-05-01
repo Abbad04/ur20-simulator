@@ -1,0 +1,17 @@
+# UR20 Arduino IK Output — Sample CSV
+# Format: name, J1_deg, J2_deg, J3_deg, J4_deg, J5_deg, J6_deg[, time_s]
+# Angles are joint angles in DEGREES (Arduino IK output)
+# Optional 8th column is move duration in seconds
+# Lines starting with # are ignored by the importer
+#
+Home,0.000,-90.000,0.000,-90.000,-90.000,0.000
+Approach,15.500,-75.200,10.100,-85.000,-88.500,5.000,2.500
+PickReady,30.000,-60.000,20.000,-80.000,-87.000,10.000,1.800
+PickDown,30.000,-55.000,35.000,-110.000,-87.000,10.000,1.200
+PickUp,30.000,-60.000,20.000,-80.000,-87.000,10.000,1.200
+Transfer,-45.000,-70.000,25.000,-85.000,-90.000,-45.000,3.000
+PlaceReady,-60.000,-65.000,18.000,-83.000,-90.000,-60.000,1.500
+PlaceDown,-60.000,-58.000,32.000,-104.000,-90.000,-60.000,1.200
+PlaceUp,-60.000,-65.000,18.000,-83.000,-90.000,-60.000,1.200
+Retract,-20.000,-80.000,10.000,-90.000,-90.000,0.000,2.000
+Home,0.000,-90.000,0.000,-90.000,-90.000,0.000,2.500
